@@ -6,6 +6,9 @@ __pycache__/
 venv/
 .pytest_cache/
 
+# LangGraph dev server
+.langgraph_api/
+
 # Environment
 .env
 !.env.example

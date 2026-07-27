@@ -1,0 +1,6 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "infrai": "./graph.py:graph"
+  }
+}
