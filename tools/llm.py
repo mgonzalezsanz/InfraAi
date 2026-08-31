@@ -1,0 +1,47 @@
+import os
+from typing import Literal
+
+from dotenv import load_dotenv
+from langchain_anthropic import ChatAnthropic
+from pydantic import BaseModel
+
+try:
+    load_dotenv()
+except UnicodeDecodeError:
+    pass  # malformed .env (e.g. wrong encoding) shouldn't crash imports
+
+DEFAULT_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
+
+
+class ChangeStep(BaseModel):
+    file: str
+    action: str
+    detail: str
+
+
+class PlannerOutput(BaseModel):
+    intent: Literal["change", "question", "ambiguous"]
+    change_plan: list[ChangeStep] = []
+    agent_message: str | None = None
+
+
+class FileEdit(BaseModel):
+    path: str
+    content: str
+
+
+class EditorOutput(BaseModel):
+    file_edits: list[FileEdit]
+
+
+# No temperature/top_p/top_k here: claude-sonnet-5 rejects non-default sampling
+# params with a 400 (adaptive thinking controls its own sampling). Reliability is
+# steered via system-prompt instructions in each agent's prompt instead.
+
+
+def get_planner_llm():
+    return ChatAnthropic(model=DEFAULT_MODEL).with_structured_output(PlannerOutput)
+
+
+def get_editor_llm():
+    return ChatAnthropic(model=DEFAULT_MODEL).with_structured_output(EditorOutput)

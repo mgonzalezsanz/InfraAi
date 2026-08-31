@@ -2,5 +2,6 @@
   "dependencies": ["."],
   "graphs": {
     "infrai": "./graph.py:graph"
-  }
+  },
+  "env": ".env"
 }

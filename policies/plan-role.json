@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadOnlyAccess",
+      "Effect": "Allow",
+      "Action": ["s3:Describe*", "s3:Get*", "s3:List*"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyMutatingActions",
+      "Effect": "Deny",
+      "Action": ["s3:Create*", "s3:Update*", "s3:Delete*", "s3:Put*"],
+      "Resource": "*"
+    }
+  ]
+}

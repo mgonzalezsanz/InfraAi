@@ -1,1 +1,10 @@
 langgraph
+python-hcl2
+langchain-anthropic
+pydantic
+python-dotenv
+checkov
+fastapi
+uvicorn
+jinja2
+python-multipart

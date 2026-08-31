@@ -1,0 +1,35 @@
+name: Terraform Apply
+
+# Triggers only on merge to main — never on PRs, forks, or other branches.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write   # required for OIDC — no static AWS keys stored anywhere
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    # Gated behind a protected GitHub Environment (e.g. required reviewers, branch
+    # restricted to main) — the secret/role is protected at the platform level, not
+    # just by this workflow's own `on:` trigger. Create this Environment first; see
+    # SETUP.md.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.INFRAI_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: terraform init
+        run: terraform init
+
+      - name: terraform apply
+        run: terraform apply -auto-approve

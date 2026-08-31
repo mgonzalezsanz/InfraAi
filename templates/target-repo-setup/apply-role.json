@@ -1,0 +1,36 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OidcSafetyPolicy",
+      "Effect": "Deny",
+      "Action": "sts:AssumeRole",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ScopedMutatingAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket",
+        "s3:PutBucketVersioning",
+        "s3:PutBucketTagging",
+        "s3:PutLifecycleConfiguration",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/ManagedBy": "InfraAI"
+        }
+      }
+    },
+    {
+      "Sid": "ReadOnlyForPlanning",
+      "Effect": "Allow",
+      "Action": ["s3:Describe*", "s3:Get*", "s3:List*"],
+      "Resource": "*"
+    }
+  ]
+}

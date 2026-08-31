@@ -1,26 +1,45 @@
 from state import InfraAIState
+from tools.llm import get_planner_llm
+
+_STATUS_BY_INTENT = {
+    "change": "editing",
+    "question": "answered",
+    "ambiguous": "needs_clarification",
+}
 
 
-def planner_agent(state: InfraAIState) -> dict:
-    """Phase 0 stub. Classifies intent with simple heuristics; real version uses an LLM (FR-2, FR-12)."""
-    request = state["user_request"].strip()
+def _build_prompt(user_request: str, repo_context: dict) -> str:
+    return (
+        "You are the Planner agent in InfraAI, a system that turns natural-language "
+        "infrastructure requests into reviewed Terraform changes.\n\n"
+        "Be reliable and trustworthy: base every answer and plan strictly on the repo "
+        "context given below — never invent resources, variables, or state that aren't "
+        "listed there. If you're not confident a request maps cleanly to one intent, "
+        "classify it as \"ambiguous\" rather than guessing.\n\n"
+        "Classify the user's request as exactly one of:\n"
+        '- "change": a concrete infrastructure change to make. Produce a change_plan: '
+        "one or more file-level steps (file, action, detail).\n"
+        '- "question": a question about the existing infrastructure, answerable from the '
+        "repo context below. Produce an agent_message with the answer.\n"
+        '- "ambiguous": too vague to plan or answer. Produce an agent_message asking a '
+        "clarifying question.\n\n"
+        "Existing repo context:\n"
+        f"- files: {list(repo_context.get('files', {}).keys())}\n"
+        f"- resources: {repo_context.get('resources', [])}\n"
+        f"- variables: {repo_context.get('variables', [])}\n"
+        f"- conventions: {repo_context.get('conventions', {})}\n\n"
+        f"User request: {user_request}"
+    )
 
-    if not request or len(request.split()) < 3:
-        return {
-            "intent": "ambiguous",
-            "agent_message": "Can you give me more detail — which resource, and what should change?",
-            "status": "needs_clarification",
-        }
 
-    if request.endswith("?"):
-        return {
-            "intent": "question",
-            "agent_message": f"(mock answer) Based on repo_context, here's what I found for: {request}",
-            "status": "answered",
-        }
+def planner_agent(state: InfraAIState, *, llm=None) -> dict:
+    """Classifies intent and produces a plan, answer, or clarifying question."""
+    llm = llm or get_planner_llm()
+    result = llm.invoke(_build_prompt(state["user_request"], state.get("repo_context", {})))
 
-    return {
-        "intent": "change",
-        "change_plan": [{"file": "main.tf", "action": "add_resource", "detail": request}],
-        "status": "editing",
-    }
+    update = {"intent": result.intent, "status": _STATUS_BY_INTENT[result.intent]}
+    if result.intent == "change":
+        update["change_plan"] = [step.model_dump() for step in result.change_plan]
+    else:
+        update["agent_message"] = result.agent_message
+    return update

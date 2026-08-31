@@ -1,0 +1,22 @@
+<div id="run-container"{% if not done %} hx-get="/runs/{{ run_id }}" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
+  <p class="request">&ldquo;{{ user_request }}&rdquo;</p>
+
+  <ul class="log">
+    {% for entry in log %}
+    <li><span class="node">{{ entry.node }}</span><span class="status status-{{ entry.status }}">{{ entry.status }}</span></li>
+    {% endfor %}
+    {% if not done %}<li class="pending">running…</li>{% endif %}
+  </ul>
+
+  {% if error %}
+    <p class="result error">Error: {{ error }}</p>
+  {% elif done %}
+    {% set pr_url = result.get("pr_url") %}
+    {% set message = result.get("agent_message") %}
+    {% if pr_url %}
+      <p class="result success">PR opened: <a href="{{ pr_url }}" target="_blank" rel="noopener">{{ pr_url }}</a></p>
+    {% elif message %}
+      <p class="result message">{{ message }}</p>
+    {% endif %}
+  {% endif %}
+</div>

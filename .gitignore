@@ -14,12 +14,19 @@ venv/
 !.env.example
 
 # Terraform
+.terraform-cache/
 **/.terraform/*
 *.tfstate
 *.tfstate.*
 crash.log
 crash.*.log
 *.tfvars
+
+# Infracost local cache
+**/.infracost/
+
+# One-off local setup artifacts (not shipped, see templates/target-repo-setup/)
+/trust-policy.json
 
 # IDE / OS
 .vscode/

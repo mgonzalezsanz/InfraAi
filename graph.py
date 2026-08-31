@@ -1,3 +1,5 @@
+from functools import partial
+
 from langgraph.graph import END, StateGraph
 
 from agents.context_agent import context_agent
@@ -22,15 +24,25 @@ def route_after_validator(state: InfraAIState) -> str:
     return "retry"
 
 
-def build_graph():
+def build_graph(
+    repo_path=None,
+    planner_llm=None,
+    editor_llm=None,
+    validate_fn=None,
+    plan_fn=None,
+    checkov_fn=None,
+    infracost_fn=None,
+    target_repo=None,
+    open_pr_fn=None,
+):
     graph = StateGraph(InfraAIState)
 
-    graph.add_node("context", context_agent)
-    graph.add_node("planner", planner_agent)
-    graph.add_node("editor", editor_agent)
-    graph.add_node("validator", validator_agent)
-    graph.add_node("security_cost", security_cost_agent)
-    graph.add_node("pr", pr_agent)
+    graph.add_node("context", partial(context_agent, repo_path=repo_path))
+    graph.add_node("planner", partial(planner_agent, llm=planner_llm))
+    graph.add_node("editor", partial(editor_agent, llm=editor_llm))
+    graph.add_node("validator", partial(validator_agent, validate=validate_fn, plan=plan_fn))
+    graph.add_node("security_cost", partial(security_cost_agent, checkov=checkov_fn, infracost=infracost_fn))
+    graph.add_node("pr", partial(pr_agent, target_repo=target_repo, open_pr=open_pr_fn))
 
     graph.set_entry_point("context")
     graph.add_edge("context", "planner")

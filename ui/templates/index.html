@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>InfraAI</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body>
+  <main class="card">
+    <h1>InfraAI</h1>
+    <p class="subtitle">Describe an infrastructure change, or ask a question about the target repo.</p>
+
+    <form hx-post="/runs" hx-target="#run-container" hx-swap="innerHTML">
+      <textarea name="user_request" placeholder="e.g. Add versioning to the app_data S3 bucket" required></textarea>
+      <button type="submit">Run</button>
+    </form>
+
+    <div id="run-container"></div>
+  </main>
+</body>
+</html>

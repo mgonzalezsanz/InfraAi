@@ -1,13 +1,18 @@
+from pathlib import Path
+
 from state import InfraAIState
+from tools.hcl_tools import parse_repo
+
+DEFAULT_FIXTURE_REPO = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "sample_repo"
 
 
-def context_agent(state: InfraAIState) -> dict:
-    """Phase 0 stub. Real version fetches only relevant files via the GitHub API (FR-1)."""
+def context_agent(state: InfraAIState, *, repo_path: str | None = None) -> dict:
+    """Parses Terraform under `repo_path` into a structured summary.
+
+    Reads a local fixture repo; wiring the real GitHub API fetch
+    (still no full clone) is deferred.
+    """
     return {
-        "repo_context": {
-            "resources": ["aws_s3_bucket.example", "aws_vpc.main"],
-            "variables": ["region", "environment"],
-            "conventions": {"naming": "snake_case", "tagging": ["Project", "Environment"]},
-        },
+        "repo_context": parse_repo(repo_path or str(DEFAULT_FIXTURE_REPO)),
         "status": "planning",
     }
