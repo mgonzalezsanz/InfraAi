@@ -38,10 +38,10 @@ def test_run_fragment_shows_agent_message():
         "log": [{"node": "planner", "status": "answered"}],
         "done": True,
         "error": None,
-        "result": {"agent_message": "us-east-1"},
+        "result": {"agent_message": "eu-west-3"},
     }
     resp = client.get("/runs/fake-question", headers={"HX-Request": "true"})
-    assert "us-east-1" in resp.text
+    assert "eu-west-3" in resp.text
 
 
 def test_run_fragment_shows_error():

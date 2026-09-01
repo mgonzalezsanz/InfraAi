@@ -38,7 +38,7 @@ def test_planner_agent_classifies_change_intent():
 
 
 def test_planner_agent_classifies_question_intent():
-    fake = _FakeLLM(PlannerOutput(intent="question", agent_message="It's us-east-1."))
+    fake = _FakeLLM(PlannerOutput(intent="question", agent_message="It's eu-west-3."))
     result = planner_agent(create_initial_state("What region is this deployed in?"), llm=fake)
     assert result["intent"] == "question"
     assert result["status"] == "answered"

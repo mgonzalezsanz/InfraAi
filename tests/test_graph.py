@@ -38,7 +38,7 @@ def test_change_request_reaches_pr_open():
 
 
 def test_question_request_ends_answered_without_pr():
-    planner_llm = _FakeLLM(PlannerOutput(intent="question", agent_message="It's us-east-1."))
+    planner_llm = _FakeLLM(PlannerOutput(intent="question", agent_message="It's eu-west-3."))
     graph = build_graph(planner_llm=planner_llm)
 
     result = graph.invoke(create_initial_state("What instance type is the app server?"))

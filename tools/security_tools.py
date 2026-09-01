@@ -24,17 +24,13 @@ def run_checkov(files: dict[str, str]) -> list[dict]:
 
 
 def run_infracost(files: dict[str, str]) -> dict:
-    """Writes `files` to a temp checkout and runs `infracost breakdown`.
-
-    Needs INFRACOST_API_KEY (free tier — `infracost register`, then
-    `infracost configure set api_key <key>` or set it in .env).
-    """
+    """Writes `files` to a temp checkout and runs `infracost scan` (needs v2+)."""
     with tempfile.TemporaryDirectory(prefix="infrai-infracost-") as tmpdir:
         materialize(files, tmpdir)
         result = subprocess.run(
-            ["infracost", "breakdown", "--path", tmpdir, "--format", "json"],
+            ["infracost", "scan", tmpdir, "--json"],
             capture_output=True, text=True,
         )
 
-    parsed = json.loads(result.stdout)
-    return {"delta_usd": float(parsed.get("totalMonthlyCost") or 0), "within_budget": True}
+    summary = json.loads(result.stdout).get("summary", {})
+    return {"delta_usd": float(summary.get("total_monthly_cost") or 0), "within_budget": True}
