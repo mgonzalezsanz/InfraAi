@@ -1,10 +1,12 @@
 name: Terraform Plan
 
-# Runs automatically on merge to main. Read-only. Publishes the plan for a human
+# Runs automatically on merge to main, and can also be dispatched by hand (e.g.
+# to refresh the plan after a destroy). Read-only. Publishes the plan for a human
 # to review before they manually run the "Terraform Apply" workflow.
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   id-token: write   # OIDC — no static AWS keys anywhere

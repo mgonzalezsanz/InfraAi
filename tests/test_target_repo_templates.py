@@ -37,8 +37,9 @@ def test_apply_role_state_backend_statement_is_scoped():
 def test_plan_workflow_is_automatic_ungated_and_read_only():
     workflow = yaml.safe_load((TEMPLATE_DIR / "plan.yml").read_text())
 
-    assert list(workflow[True].keys()) == ["push"]  # PyYAML parses bare `on:` as boolean True
-    assert workflow[True]["push"]["branches"] == ["main"]
+    triggers = workflow[True]  # PyYAML parses bare `on:` as boolean True
+    assert triggers["push"]["branches"] == ["main"]     # automatic on merge
+    assert "workflow_dispatch" in triggers             # also re-runnable by hand
     assert workflow["permissions"]["id-token"] == "write"  # OIDC, no static keys
 
     plan = workflow["jobs"]["plan"]
@@ -47,6 +48,23 @@ def test_plan_workflow_is_automatic_ungated_and_read_only():
     assert "INFRAI_PLAN_ROLE_ARN" in steps
     assert "INFRAI_APPLY_ROLE_ARN" not in steps  # the mutating role never reaches the plan job
     assert "-lock=false" in steps  # plan never writes state -> plan role stays read-only
+
+
+def test_destroy_workflow_is_manual_confirmed_and_uses_the_apply_role():
+    workflow = yaml.safe_load((TEMPLATE_DIR / "destroy.yml").read_text())
+
+    assert list(workflow[True].keys()) == ["workflow_dispatch"]  # never automatic
+    confirm = workflow[True]["workflow_dispatch"]["inputs"]["confirm"]
+    assert confirm["required"] is True
+
+    job = workflow["jobs"]["destroy"]
+    assert job["environment"] == "production"
+    steps = yaml.safe_dump(job["steps"])
+    assert "INFRAI_APPLY_ROLE_ARN" in steps      # destroy mutates -> apply role
+    assert "INFRAI_PLAN_ROLE_ARN" not in steps
+    assert "plan -destroy" in steps
+    # typed-confirm gate, read from env (not inline ${{ }}) so it's injection-safe
+    assert "CONFIRM" in steps and "::error::" in steps and "exit 1" in steps
 
 
 def test_apply_workflow_is_manual_and_applies_the_reviewed_plan():
@@ -64,11 +82,9 @@ def test_apply_workflow_is_manual_and_applies_the_reviewed_plan():
     assert "stale" in steps.lower()  # has the "main moved" guard
 
 
-def test_plan_and_apply_pin_the_same_terraform_version():
-    plan = yaml.safe_load((TEMPLATE_DIR / "plan.yml").read_text())
-    apply = yaml.safe_load((TEMPLATE_DIR / "apply.yml").read_text())
-
-    def tf_versions(wf):
+def test_all_workflows_pin_the_same_terraform_version():
+    def tf_versions(name):
+        wf = yaml.safe_load((TEMPLATE_DIR / name).read_text())
         return {
             step["with"]["terraform_version"]
             for job in wf["jobs"].values()
@@ -77,8 +93,8 @@ def test_plan_and_apply_pin_the_same_terraform_version():
             and step["uses"].startswith("hashicorp/setup-terraform")
         }
 
-    versions = tf_versions(plan) | tf_versions(apply)
-    assert len(versions) == 1, f"plan/apply must pin one Terraform version, got {versions}"
+    versions = tf_versions("plan.yml") | tf_versions("apply.yml") | tf_versions("destroy.yml")
+    assert len(versions) == 1, f"plan/apply/destroy must pin one Terraform version, got {versions}"
 
 
 def test_config_example_has_budget_and_allowed_resources():

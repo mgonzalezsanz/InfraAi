@@ -4,13 +4,15 @@ Steps to point InfraAI at your Terraform repo. Nothing in this folder ever runs
 inside InfraAI itself — copy these files into the target repo and follow along
 there.
 
-The CI model, two workflows:
+The CI model, three workflows:
 
-- **`plan.yml`** — runs automatically on merge to `main`. Read-only. Publishes
-  the plan (run summary + artifact).
+- **`plan.yml`** — runs automatically on merge to `main` (and can be dispatched
+  by hand). Read-only. Publishes the plan (run summary + artifact).
 - **`apply.yml`** — `workflow_dispatch` only. A human reads the plan, then runs
   this workflow from the Actions tab. It applies the exact plan that ran. **That
   manual run is the gate.**
+- **`destroy.yml`** — `workflow_dispatch` only, with a typed `confirm` input
+  (`destroy`). Tears everything down. Same apply role, same gate idea.
 
 > A GitHub Environment *approval* rule (required reviewers) would be the more
 > native gate, but it needs a **public** repo or GitHub Enterprise. On a private
@@ -133,10 +135,14 @@ The apply job runs on an ephemeral runner. You need a remote backend.
 ## 7. Copy the workflows and config, set the GitHub variables
 - `plan.yml` → `.github/workflows/plan.yml`
 - `apply.yml` → `.github/workflows/apply.yml`
+- `destroy.yml` → `.github/workflows/destroy.yml`
 - `infrai.config.yaml.example` → `infrai.config.yaml`, fill in your real budget
   ceiling and allowed resource types.
-- Both workflows pin `terraform_version` to the same value — keep them in sync so
-  a saved plan stays valid when `apply.yml` consumes it.
+- All three workflows pin `terraform_version` to the same value — keep them in
+  sync so a saved plan stays valid when `apply.yml` consumes it.
+- `workflow_dispatch` workflows only show a **Run workflow** button once the file
+  is on the default branch, so `apply.yml` / `destroy.yml` become runnable only
+  after the first merge.
 - Variables (Settings → Secrets and variables → Actions → Variables):
 
   | Variable | Scope | Value |
