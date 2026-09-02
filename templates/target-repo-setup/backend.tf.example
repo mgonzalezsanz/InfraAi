@@ -1,0 +1,12 @@
+# Copy to backend.tf in the target repo and fill in your values.
+# The bucket must already exist (see SETUP.md step 6) — Terraform won't create it.
+
+terraform {
+  backend "s3" {
+    bucket       = "<STATE_BUCKET>"
+    key          = "<STATE_KEY_PREFIX>/terraform.tfstate"
+    region       = "<REGION>"
+    encrypt      = true
+    use_lockfile = true # S3-native locking (Terraform >= 1.10) — no DynamoDB table
+  }
+}

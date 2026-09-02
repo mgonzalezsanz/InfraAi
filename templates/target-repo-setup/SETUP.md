@@ -50,11 +50,29 @@ so the apply job's secrets are gated at the platform level.
 - In this repo's Settings → Environments → `production`, add variables
   `INFRAI_APPLY_ROLE_ARN` and `AWS_REGION` (used by `apply.yml`).
 
-## 6. Copy the workflow and config
+## 6. Bootstrap Terraform remote state
+The apply job runs on an ephemeral runner. You need a remote backend.
+- Create an S3 state bucket **out of band** (it can't be managed by the Terraform
+  it stores). Enable versioning; block public access:
+  ```
+  aws s3api create-bucket --bucket <STATE_BUCKET> --region <REGION> \
+    --create-bucket-configuration LocationConstraint=<REGION>
+  aws s3api put-bucket-versioning --bucket <STATE_BUCKET> \
+    --versioning-configuration Status=Enabled
+  aws s3api put-public-access-block --bucket <STATE_BUCKET> \
+    --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+  ```
+- Copy `backend.tf.example` → `backend.tf` in this repo and fill in the bucket,
+  key, and region. `use_lockfile` needs Terraform ≥ 1.10 (no DynamoDB table).
+- In `apply-role.json`, set the `TerraformStateBackend` statement's `Resource` to
+  `arn:aws:s3:::<STATE_BUCKET>/<STATE_KEY_PREFIX>/*` before creating/updating the
+  role. (`GetObject`/`ListBucket` are already covered by `ReadOnlyForPlanning`.)
+
+## 7. Copy the workflow and config
 - `apply.yml` → `.github/workflows/apply.yml`
 - `infrai.config.yaml.example` → `infrai.config.yaml`, fill in your real budget
   ceiling and allowed resource types.
 
-## 7. Verify
+## 8. Verify
 Merge a PR opened by InfraAI and confirm the apply workflow runs (and waits for
 approval, if the Environment requires it).
