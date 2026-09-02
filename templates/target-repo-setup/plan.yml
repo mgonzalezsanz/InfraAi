@@ -1,0 +1,63 @@
+name: Terraform Plan
+
+# Runs automatically on merge to main. Read-only. Publishes the plan for a human
+# to review before they manually run the "Terraform Apply" workflow.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write   # OIDC — no static AWS keys anywhere
+  contents: read
+
+concurrency:
+  group: terraform-${{ github.ref }}   # shared with apply.yml so the two never overlap
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.0"   # pinned: apply.yml must use the same build
+
+      - name: Format
+        run: terraform fmt -check -recursive -diff
+
+      - name: Checkov (policy scan — reported, not blocking)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: terraform
+          soft_fail: true
+          quiet: true
+
+      - name: Configure AWS credentials (read-only plan role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.INFRAI_PLAN_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - run: terraform init -input=false
+      - run: terraform validate -no-color
+      - run: terraform plan -input=false -lock=false -out=tfplan -no-color
+
+      - name: Plan summary
+        run: terraform show -no-color tfplan >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record source commit
+        run: echo "${{ github.sha }}" > tfplan.sha
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: |
+            tfplan
+            tfplan.sha
+          retention-days: 5

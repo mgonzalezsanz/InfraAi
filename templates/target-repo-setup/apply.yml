@@ -1,0 +1,70 @@
+name: Terraform Apply
+
+# Manually dispatched — this click is the gate. A human reviews the plan from the
+# latest "Terraform Plan" run, then runs this workflow to apply that exact plan.
+# (GitHub's Environment approval gate needs a public repo or Enterprise; a manual
+# dispatch is the private-repo equivalent.)
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # OIDC — no static AWS keys anywhere
+  contents: read    # checkout
+  actions: read     # download the plan artifact from the Terraform Plan workflow
+
+concurrency:
+  group: terraform-${{ github.ref }}   # shared with plan.yml so the two never overlap
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    # No approval rule on private/free, but the Environment still scopes the OIDC
+    # `sub` to `environment:production` and (via its deployment-branch rule)
+    # refuses a dispatch from any branch other than main.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the plan from the latest successful Terraform Plan run on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_ID=$(gh run list --workflow=plan.yml --branch=main -s success \
+            --limit 1 --json databaseId --jq '.[0].databaseId')
+          if [ -z "$RUN_ID" ]; then
+            echo "::error::No successful Terraform Plan run found on main."
+            exit 1
+          fi
+          echo "Downloading plan from run $RUN_ID"
+          gh run download "$RUN_ID" --name tfplan --dir _dl
+          # normalise: gh may or may not nest files under an artifact-named dir
+          mkdir -p plan-artifact
+          find _dl -type f -exec mv {} plan-artifact/ \;
+
+      - name: Guard against a stale plan
+        run: |
+          PLANNED_SHA=$(cat plan-artifact/tfplan.sha)
+          CURRENT_SHA=$(git rev-parse HEAD)
+          echo "plan built from: $PLANNED_SHA"
+          echo "main is now:     $CURRENT_SHA"
+          if [ "$PLANNED_SHA" != "$CURRENT_SHA" ]; then
+            echo "::error::main moved since this plan was generated. Let Terraform Plan re-run, review it, then dispatch again."
+            exit 1
+          fi
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.0"
+
+      - name: Configure AWS credentials (apply role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.INFRAI_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - run: terraform init -input=false
+      - run: terraform apply -input=false plan-artifact/tfplan
