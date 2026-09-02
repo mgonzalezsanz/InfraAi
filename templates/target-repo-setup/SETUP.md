@@ -51,10 +51,21 @@ Create (or confirm) the GitHub OIDC identity provider in IAM
 (`token.actions.githubusercontent.com`, audience `sts.amazonaws.com`), then
 create **two** roles. Never give the plan role any mutating permission.
 
+**The `sub` claim uses immutable IDs.** GitHub now issues OIDC tokens whose `sub`
+embeds the numeric owner and repo IDs, so a rename can't hand your role to
+someone else. The prefix looks like `repo:<org>@<OWNER_ID>/<repo>@<REPO_ID>`. Get
+your exact value — AWS also requires the trust to condition on `sub` (or
+`job_workflow_ref`), not on `repository_id` alone:
+```
+gh api repos/<org>/<repo>/actions/oidc/customization/sub --jq .sub_claim_prefix
+# -> repo:<org>@<OWNER_ID>/<repo>@<REPO_ID>
+```
+
 ### 5a. `infrai-target-plan-role` — used by the automatic `plan` job
 - Permissions policy: `plan-role.json` as-is (read-only + an explicit `Deny` on
   every mutating verb).
-- Trust policy — `plan.yml` is ungated, so GitHub issues a `ref:` subject:
+- Trust policy — `plan.yml` is ungated, so GitHub appends `:ref:refs/heads/main`
+  to the prefix:
   ```json
   {
     "Version": "2012-10-17",
@@ -65,7 +76,7 @@ create **two** roles. Never give the plan role any mutating permission.
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:<org>/<repo>:ref:refs/heads/main"
+          "token.actions.githubusercontent.com:sub": "repo:<org>@<OWNER_ID>/<repo>@<REPO_ID>:ref:refs/heads/main"
         }
       }
     }]
@@ -78,9 +89,8 @@ create **two** roles. Never give the plan role any mutating permission.
   own demo/fixture. Set the `<RESOURCE_NAME_PREFIX>` placeholder to the prefix
   InfraAI is allowed to create.
 - Trust policy — because `apply.yml`'s job declares `environment: production`,
-  GitHub sets the `sub` claim to `repo:<org>/<repo>:environment:production`, **not**
-  `...:ref:refs/heads/main`. Scope the trust to that; the branch guarantee comes
-  from the Environment's deployment-branch rule (step 4):
+  GitHub appends `:environment:production` (**not** `:ref:refs/heads/main`). The
+  branch guarantee comes from the Environment's deployment-branch rule (step 4):
   ```json
   {
     "Version": "2012-10-17",
@@ -91,14 +101,14 @@ create **two** roles. Never give the plan role any mutating permission.
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:<org>/<repo>:environment:production"
+          "token.actions.githubusercontent.com:sub": "repo:<org>@<OWNER_ID>/<repo>@<REPO_ID>:environment:production"
         }
       }
     }]
   }
   ```
-  (If you ever drop the `environment:` key from `apply.yml`, switch this `sub`
-  back to `repo:<org>/<repo>:ref:refs/heads/main`.)
+  (If you ever drop the `environment:` key from `apply.yml`, switch the suffix
+  back to `:ref:refs/heads/main`.)
 
 ## 6. Bootstrap Terraform remote state
 The apply job runs on an ephemeral runner. You need a remote backend.
