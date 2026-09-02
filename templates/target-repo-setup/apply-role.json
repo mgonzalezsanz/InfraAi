@@ -19,18 +19,22 @@
         "s3:PutObject",
         "s3:DeleteObject"
       ],
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:ResourceTag/ManagedBy": "InfraAI"
-        }
-      }
+      "Resource": [
+        "arn:aws:s3:::<RESOURCE_NAME_PREFIX>-*",
+        "arn:aws:s3:::<RESOURCE_NAME_PREFIX>-*/*"
+      ]
     },
     {
       "Sid": "ReadOnlyForPlanning",
       "Effect": "Allow",
       "Action": ["s3:Describe*", "s3:Get*", "s3:List*"],
       "Resource": "*"
+    },
+    {
+      "Sid": "TerraformStateBackend",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::<STATE_BUCKET>/<STATE_KEY_PREFIX>/*"
     }
   ]
 }

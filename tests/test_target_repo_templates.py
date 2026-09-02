@@ -10,14 +10,28 @@ import yaml
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates" / "target-repo-setup"
 
 
-def test_apply_role_policy_is_valid_and_tag_scoped():
+def test_apply_role_mutating_access_is_resource_scoped():
     policy = json.loads((TEMPLATE_DIR / "apply-role.json").read_text())
     mutating_statement = next(s for s in policy["Statement"] if s["Sid"] == "ScopedMutatingAccess")
 
     assert mutating_statement["Effect"] == "Allow"
     assert mutating_statement["Action"]  # has at least one mutating action
-    # apply-role must be scoped, not a blanket allow on every resource
-    assert "Condition" in mutating_statement
+    assert all(a.startswith("s3:") for a in mutating_statement["Action"])  # S3 only
+    # scoped to a name prefix, never a blanket allow on every bucket. (Not tag-
+    # scoped: aws:ResourceTag can't be evaluated for s3:CreateBucket.)
+    resources = mutating_statement["Resource"]
+    assert isinstance(resources, list) and resources
+    assert all(r != "*" and r.startswith("arn:aws:s3:::") for r in resources)
+
+
+def test_apply_role_state_backend_statement_is_scoped():
+    policy = json.loads((TEMPLATE_DIR / "apply-role.json").read_text())
+    state_statement = next(s for s in policy["Statement"] if s["Sid"] == "TerraformStateBackend")
+
+    assert state_statement["Effect"] == "Allow"
+    # write access to the state object only — never a blanket allow
+    assert state_statement["Resource"] != "*"
+    assert set(state_statement["Action"]) <= {"s3:PutObject", "s3:DeleteObject"}
 
 
 def test_apply_workflow_triggers_only_on_main_push():
