@@ -26,7 +26,7 @@ def _stub_run(stdout: str):
 def test_run_infracost_parses_v2_summary_cost(monkeypatch):
     monkeypatch.setattr(subprocess, "run", _stub_run(_INFRACOST_V2_JSON))
     result = security_tools.run_infracost({"main.tf": "# ignored, subprocess is stubbed"})
-    assert result == {"delta_usd": 53.374, "within_budget": True}
+    assert result == {"delta_usd": 53.374}  # budget comparison is the agent's job, not the tool's
 
 
 def test_run_infracost_handles_zero_cost(monkeypatch):

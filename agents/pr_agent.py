@@ -14,6 +14,15 @@ except UnicodeDecodeError:
 DEFAULT_TARGET_REPO = os.environ.get("INFRAI_TARGET_REPO")
 
 
+def _budget_note(cost: dict) -> str:
+    ceiling = cost.get("budget_ceiling_usd_per_month")
+    if ceiling is None:
+        return "no budget ceiling configured"
+    if cost.get("within_budget"):
+        return f"within the ${ceiling:g}/mo ceiling"
+    return f"**⚠️ OVER the ${ceiling:g}/mo ceiling**"
+
+
 def _pr_body(state: InfraAIState) -> str:
     findings = state.get("security_findings", [])
     findings_desc = "\n".join(f"- `{f['check_id']}` {f['check_name']} ({f['resource']})" for f in findings) or "None"
@@ -24,9 +33,8 @@ def _pr_body(state: InfraAIState) -> str:
         f"**Request:** {state['user_request']}\n\n"
         f"**Plan:**\n{plan_desc}\n\n"
         f"**Diff:**\n```diff\n{state.get('diff', '')}\n```\n\n"
-        f"**Security findings (Checkov):**\n{findings_desc}\n\n"
-        f"**Cost delta:** ${cost.get('delta_usd', 0):.2f}/mo "
-        f"({'within' if cost.get('within_budget') else 'over'} budget)\n\n"
+        f"**Security & policy findings:**\n{findings_desc}\n\n"
+        f"**Cost delta:** ${cost.get('delta_usd', 0):.2f}/mo — {_budget_note(cost)}\n\n"
         "_Opened by InfraAI._"
     )
 

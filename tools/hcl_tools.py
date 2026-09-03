@@ -1,4 +1,5 @@
 import re
+import tempfile
 from pathlib import Path
 
 import hcl2
@@ -67,3 +68,11 @@ def materialize(files: dict[str, str], directory: str) -> None:
         path = root / relpath
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
+
+
+def parse_files(files: dict[str, str]) -> dict:
+    """`parse_repo` for an in-memory files dict — used by agents that hold an
+    edited `repo_context["files"]` rather than a checkout on disk."""
+    with tempfile.TemporaryDirectory(prefix="infrai-parse-") as tmpdir:
+        materialize(files, tmpdir)
+        return parse_repo(tmpdir)

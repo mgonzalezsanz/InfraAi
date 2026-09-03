@@ -4,6 +4,7 @@ from typing import Literal, TypedDict
 class InfraAIState(TypedDict):
     user_request: str
     repo_context: dict          # existing resources, variables, conventions
+    config: dict                # target repo's infrai.config.yaml: budget ceiling, allowed resource types
     intent: Literal["change", "question", "ambiguous"] | None   # set by planner agent
     change_plan: list[dict]     # planner's file-level plan
     diff: str                   # current proposed diff
@@ -30,6 +31,7 @@ def create_initial_state(user_request: str) -> InfraAIState:
     return InfraAIState(
         user_request=user_request,
         repo_context={},
+        config={},
         intent=None,
         change_plan=[],
         diff="",

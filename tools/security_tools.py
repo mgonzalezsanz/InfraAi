@@ -24,7 +24,11 @@ def run_checkov(files: dict[str, str]) -> list[dict]:
 
 
 def run_infracost(files: dict[str, str]) -> dict:
-    """Writes `files` to a temp checkout and runs `infracost scan` (needs v2+)."""
+    """Writes `files` to a temp checkout and runs `infracost scan` (needs v2+).
+
+    Returns only the cost number — the budget-ceiling comparison is a policy
+    decision the security/cost agent makes against `infrai.config.yaml`.
+    """
     with tempfile.TemporaryDirectory(prefix="infrai-infracost-") as tmpdir:
         materialize(files, tmpdir)
         result = subprocess.run(
@@ -33,4 +37,4 @@ def run_infracost(files: dict[str, str]) -> dict:
         )
 
     summary = json.loads(result.stdout).get("summary", {})
-    return {"delta_usd": float(summary.get("total_monthly_cost") or 0), "within_budget": True}
+    return {"delta_usd": float(summary.get("total_monthly_cost") or 0)}

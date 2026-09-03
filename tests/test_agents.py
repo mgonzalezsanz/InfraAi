@@ -24,6 +24,12 @@ def test_context_agent_returns_repo_context():
     assert "region" in result["repo_context"]["variables"]
 
 
+def test_context_agent_loads_target_repo_config():
+    result = context_agent(create_initial_state("anything"))
+    assert result["config"]["budget_ceiling_usd_per_month"] == 100
+    assert "aws_s3_bucket" in result["config"]["allowed_resource_types"]
+
+
 def test_planner_agent_classifies_change_intent():
     fake = _FakeLLM(
         PlannerOutput(
@@ -100,13 +106,84 @@ def test_validator_agent_increments_retry_on_plan_failure():
 
 def test_security_cost_agent_returns_findings_and_cost():
     fake_checkov = lambda files: [{"check_id": "CKV_AWS_1", "check_name": "mock check", "resource": "x"}]
-    fake_infracost = lambda files: {"delta_usd": 4.2, "within_budget": True}
+    fake_infracost = lambda files: {"delta_usd": 4.2}
     result = security_cost_agent(
         create_initial_state("Add a bucket"), checkov=fake_checkov, infracost=fake_infracost
     )
     assert result["security_findings"]
     assert result["cost_estimate"]["delta_usd"] == 4.2
     assert result["status"] == "ready_for_pr"
+
+
+def _state_with(config, files=None, resources=None):
+    state = create_initial_state("Add something")
+    state["config"] = config
+    state["repo_context"] = {"files": files or {}, "resources": resources or []}
+    return state
+
+
+def test_security_cost_agent_flags_over_budget():
+    result = security_cost_agent(
+        _state_with({"budget_ceiling_usd_per_month": 10}),
+        checkov=lambda f: [],
+        infracost=lambda f: {"delta_usd": 42.0},
+    )
+    assert result["cost_estimate"]["within_budget"] is False
+    assert result["cost_estimate"]["budget_ceiling_usd_per_month"] == 10
+
+
+def test_security_cost_agent_within_budget():
+    result = security_cost_agent(
+        _state_with({"budget_ceiling_usd_per_month": 100}),
+        checkov=lambda f: [],
+        infracost=lambda f: {"delta_usd": 42.0},
+    )
+    assert result["cost_estimate"]["within_budget"] is True
+
+
+def test_security_cost_agent_no_config_is_permissive():
+    result = security_cost_agent(
+        _state_with({}),
+        checkov=lambda f: [],
+        infracost=lambda f: {"delta_usd": 9999.0},
+    )
+    assert result["cost_estimate"]["within_budget"] is True
+    assert result["security_findings"] == []
+
+
+def test_security_cost_agent_flags_resource_type_not_in_allowlist():
+    files = {
+        "main.tf": (
+            'resource "aws_s3_bucket" "app" {\n  bucket = "x"\n}\n'
+            'resource "aws_instance" "web" {\n  ami = "ami-1"\n  instance_type = "t3.micro"\n}\n'
+        )
+    }
+    result = security_cost_agent(
+        _state_with(
+            {"allowed_resource_types": ["aws_s3_bucket"]},
+            files=files,
+            resources=["aws_s3_bucket.app"],  # aws_instance is new
+        ),
+        checkov=lambda f: [],
+        infracost=lambda f: {"delta_usd": 0.0},
+    )
+    ids = [f["check_id"] for f in result["security_findings"]]
+    assert ids == ["INFRAI_ALLOWED_RESOURCE_TYPES"]
+    assert result["security_findings"][0]["resource"] == "aws_instance"
+
+
+def test_security_cost_agent_ignores_preexisting_disallowed_types():
+    files = {"main.tf": 'resource "aws_instance" "web" {\n  ami = "ami-1"\n  instance_type = "t3.micro"\n}\n'}
+    result = security_cost_agent(
+        _state_with(
+            {"allowed_resource_types": ["aws_s3_bucket"]},
+            files=files,
+            resources=["aws_instance.web"],  # already there before this change
+        ),
+        checkov=lambda f: [],
+        infracost=lambda f: {"delta_usd": 0.0},
+    )
+    assert result["security_findings"] == []
 
 
 def test_pr_agent_returns_pr_url():

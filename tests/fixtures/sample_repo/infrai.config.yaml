@@ -1,0 +1,6 @@
+budget_ceiling_usd_per_month: 100
+
+allowed_resource_types:
+  - aws_s3_bucket
+  - aws_s3_bucket_versioning
+  - aws_s3_bucket_lifecycle_configuration
