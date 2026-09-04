@@ -15,12 +15,18 @@ def run_validate(files: dict[str, str]) -> dict:
 
     No AWS credentials needed — validate only checks syntax/schema against the
     provider plugin, it never calls AWS. See `run_plan` for the AWS-backed step.
+
+    Skips backend.tf since even with -backend=false, a configured backend can
+    interfere. Validation is about syntax, not backend setup.
     """
     _PLUGIN_CACHE_DIR.mkdir(exist_ok=True)
     env = {**os.environ, "TF_PLUGIN_CACHE_DIR": str(_PLUGIN_CACHE_DIR)}
 
+    # exclude backend.tf from validation
+    files_to_validate = {p: c for p, c in files.items() if not p.endswith("backend.tf")}
+
     with tempfile.TemporaryDirectory(prefix="infrai-validate-") as tmpdir:
-        materialize(files, tmpdir)
+        materialize(files_to_validate, tmpdir)
 
         subprocess.run(
             ["terraform", "init", "-backend=false", "-input=false"],
@@ -42,12 +48,17 @@ def run_plan(files: dict[str, str], aws_profile: str = "infrai-plan") -> dict:
     """Writes `files` to a temp checkout and runs terraform plan using infrai-plan-role
     credentials. Read-only against AWS — the role's policy denies every
     mutating action as a backstop, so this can never apply anything.
+
+    Skips backend.tf so the plan doesn't depend on S3 backend setup (the apply
+    workflow handles that).
     """
     _PLUGIN_CACHE_DIR.mkdir(exist_ok=True)
     env = {**os.environ, "TF_PLUGIN_CACHE_DIR": str(_PLUGIN_CACHE_DIR), "AWS_PROFILE": aws_profile}
 
+    files_to_plan = {p: c for p, c in files.items() if not p.endswith("backend.tf")}
+
     with tempfile.TemporaryDirectory(prefix="infrai-plan-") as tmpdir:
-        materialize(files, tmpdir)
+        materialize(files_to_plan, tmpdir)
 
         subprocess.run(
             ["terraform", "init", "-backend=false", "-input=false"],

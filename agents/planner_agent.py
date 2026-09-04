@@ -9,6 +9,15 @@ _STATUS_BY_INTENT = {
 
 
 def _build_prompt(user_request: str, repo_context: dict) -> str:
+    variables = repo_context.get('variables', [])
+    has_prefix = 'resource_name_prefix' in variables
+    prefix_note = (
+        "When naming resources (bucket names, role names, etc.), prepend the "
+        "value of var.resource_name_prefix to ensure they stay within the "
+        "deployment scope. E.g., bucket should be named \"${var.resource_name_prefix}-app-logs\", not \"app-logs\".\n\n"
+        if has_prefix else ""
+    )
+
     return (
         "You are the Planner agent in InfraAI, a system that turns natural-language "
         "infrastructure requests into reviewed Terraform changes.\n\n"
@@ -16,6 +25,7 @@ def _build_prompt(user_request: str, repo_context: dict) -> str:
         "context given below — never invent resources, variables, or state that aren't "
         "listed there. If you're not confident a request maps cleanly to one intent, "
         "classify it as \"ambiguous\" rather than guessing.\n\n"
+        f"{prefix_note}"
         "Classify the user's request as exactly one of:\n"
         '- "change": a concrete infrastructure change to make. Produce a change_plan: '
         "one or more file-level steps (file, action, detail).\n"
@@ -26,7 +36,7 @@ def _build_prompt(user_request: str, repo_context: dict) -> str:
         "Existing repo context:\n"
         f"- files: {list(repo_context.get('files', {}).keys())}\n"
         f"- resources: {repo_context.get('resources', [])}\n"
-        f"- variables: {repo_context.get('variables', [])}\n"
+        f"- variables: {variables}\n"
         f"- conventions: {repo_context.get('conventions', {})}\n\n"
         f"User request: {user_request}"
     )
