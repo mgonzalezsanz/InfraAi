@@ -1,6 +1,16 @@
-from tools.config import load_config
+from tools.config import load_config, parse_config
 
 SAMPLE_REPO = "tests/fixtures/sample_repo"
+
+
+def test_parse_config_from_text():
+    config = parse_config("budget_ceiling_usd_per_month: 30\nallowed_resource_types: [aws_vpc]\n")
+    assert config["budget_ceiling_usd_per_month"] == 30
+    assert config["allowed_resource_types"] == ["aws_vpc"]
+
+
+def test_parse_config_none_is_permissive():
+    assert parse_config(None) == {"budget_ceiling_usd_per_month": None, "allowed_resource_types": None}
 
 
 def test_load_config_reads_the_target_repo_file():

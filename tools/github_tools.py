@@ -1,9 +1,11 @@
+import base64
 import hashlib
 import json
 import re
 import subprocess
 import tempfile
 
+from tools.config import CONFIG_FILENAME
 from tools.hcl_tools import materialize
 
 
@@ -20,6 +22,32 @@ def _run(cmd, cwd=None):
     if result.returncode != 0:
         raise RuntimeError(f"{' '.join(cmd)} failed: {result.stderr.strip()}")
     return result
+
+
+def _gh_api(path: str) -> dict:
+    return json.loads(_run(["gh", "api", path]).stdout)
+
+
+def fetch_repo_files(repo: str, ref: str = "main") -> dict[str, str]:
+    """Reads a target repo's Terraform files + `infrai.config.yaml` over the
+    GitHub API — one recursive tree call plus one blob call per file, no clone.
+
+    Returns `{path: content}`. Raises RuntimeError if `gh` fails (missing repo,
+    bad ref, no auth) rather than returning a misleading empty dict.
+    """
+    tree = _gh_api(f"repos/{repo}/git/trees/{ref}?recursive=1")
+    wanted = [
+        entry["path"]
+        for entry in tree.get("tree", [])
+        if entry["type"] == "blob"
+        and (entry["path"].endswith(".tf") or entry["path"].split("/")[-1] == CONFIG_FILENAME)
+    ]
+
+    files: dict[str, str] = {}
+    for path in wanted:
+        blob = _gh_api(f"repos/{repo}/contents/{path}?ref={ref}")
+        files[path] = base64.b64decode(blob.get("content", "")).decode("utf-8")
+    return files
 
 
 def open_or_update_pr(repo: str, branch: str, files: dict[str, str], title: str, body: str) -> str:

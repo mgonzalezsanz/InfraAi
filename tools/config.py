@@ -16,14 +16,15 @@ _DEFAULTS: dict = {
 }
 
 
-def load_config(repo_path: str) -> dict:
-    """Load ``infrai.config.yaml`` from the root of a target-repo checkout.
+def parse_config(text: str | None) -> dict:
+    """Parse ``infrai.config.yaml`` contents. Missing text or missing keys yield
+    the permissive defaults, so a target repo without the file still runs — just
+    without guardrails."""
+    loaded = yaml.safe_load(text) if text else None
+    return {**_DEFAULTS, **(loaded or {})}
 
-    A missing file (or missing keys) yields the permissive defaults above, so a
-    target repo that hasn't added the file still runs — just without guardrails.
-    """
+
+def load_config(repo_path: str) -> dict:
+    """`parse_config` for a local target-repo checkout."""
     path = Path(repo_path) / CONFIG_FILENAME
-    if not path.is_file():
-        return dict(_DEFAULTS)
-    loaded = yaml.safe_load(path.read_text()) or {}
-    return {**_DEFAULTS, **loaded}
+    return parse_config(path.read_text() if path.is_file() else None)

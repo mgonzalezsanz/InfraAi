@@ -30,6 +30,21 @@ def test_context_agent_loads_target_repo_config():
     assert "aws_s3_bucket" in result["config"]["allowed_resource_types"]
 
 
+def test_context_agent_reads_target_repo_over_the_api(monkeypatch):
+    import agents.context_agent as ca
+
+    fetched = {
+        "main.tf": 'resource "aws_s3_bucket" "logs" {\n  bucket = "x"\n}\n',
+        "infrai.config.yaml": "budget_ceiling_usd_per_month: 7\nallowed_resource_types: [aws_s3_bucket]\n",
+    }
+    monkeypatch.setattr(ca, "fetch_repo_files", lambda repo, ref: fetched)
+
+    result = ca.context_agent(create_initial_state("x"), target_repo="acme/infra")
+    assert "aws_s3_bucket.logs" in result["repo_context"]["resources"]
+    assert result["config"]["budget_ceiling_usd_per_month"] == 7
+    assert "infrai.config.yaml" not in result["repo_context"]["files"]  # never in the terraform fileset
+
+
 def test_planner_agent_classifies_change_intent():
     fake = _FakeLLM(
         PlannerOutput(

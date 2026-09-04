@@ -1,3 +1,4 @@
+import os
 import threading
 import uuid
 
@@ -8,6 +9,10 @@ from fastapi.templating import Jinja2Templates
 
 from graph import build_graph
 from state import create_initial_state
+
+# The repo InfraAI reads (context) and opens PRs against (pr agent). Unset ->
+# context falls back to the bundled fixture.
+TARGET_REPO = os.environ.get("INFRAI_TARGET_REPO")
 
 app = FastAPI(title="InfraAI")
 templates = Jinja2Templates(directory="ui/templates")
@@ -23,7 +28,8 @@ def _execute(run_id: str, user_request: str) -> None:
     log = []
     result = {}
     try:
-        for update in build_graph().stream(create_initial_state(user_request), stream_mode="updates"):
+        graph = build_graph(target_repo=TARGET_REPO)
+        for update in graph.stream(create_initial_state(user_request), stream_mode="updates"):
             for node_name, node_update in update.items():
                 log.append({"node": node_name, "status": node_update.get("status")})
                 result.update(node_update)

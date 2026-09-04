@@ -26,18 +26,19 @@ def route_after_validator(state: InfraAIState) -> str:
 
 def build_graph(
     repo_path=None,
+    target_repo=None,
+    ref="main",
     planner_llm=None,
     editor_llm=None,
     validate_fn=None,
     plan_fn=None,
     checkov_fn=None,
     infracost_fn=None,
-    target_repo=None,
     open_pr_fn=None,
 ):
     graph = StateGraph(InfraAIState)
 
-    graph.add_node("context", partial(context_agent, repo_path=repo_path))
+    graph.add_node("context", partial(context_agent, repo_path=repo_path, target_repo=target_repo, ref=ref))
     graph.add_node("planner", partial(planner_agent, llm=planner_llm))
     graph.add_node("editor", partial(editor_agent, llm=editor_llm))
     graph.add_node("validator", partial(validator_agent, validate=validate_fn, plan=plan_fn))
