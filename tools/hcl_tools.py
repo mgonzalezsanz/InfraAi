@@ -41,7 +41,11 @@ def parse_repo(path: str) -> dict:
                     rname = _unquote(rname)
                     resources.append(f"{rtype}.{rname}")
                     names.append(rname)
+                    # python-hcl2 wraps every attribute value in a 1-element list,
+                    # so `tags = { ... }` arrives as [{...}] — unwrap before reading.
                     tags = attrs.get("tags")
+                    if isinstance(tags, list) and tags:
+                        tags = tags[0]
                     if isinstance(tags, dict):
                         tag_keys.update(tags.keys())
 
