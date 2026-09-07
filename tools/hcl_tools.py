@@ -23,6 +23,7 @@ def parse_repo(path: str) -> dict:
     root = Path(path)
     files: dict[str, str] = {}
     resources: list[str] = []
+    resource_files: dict[str, list[str]] = {}   # which .tf file defines which resources
     variables: list[str] = []
     tag_keys: set[str] = set()
     names: list[str] = []
@@ -39,7 +40,9 @@ def parse_repo(path: str) -> dict:
                 rtype = _unquote(rtype)
                 for rname, attrs in named.items():
                     rname = _unquote(rname)
-                    resources.append(f"{rtype}.{rname}")
+                    addr = f"{rtype}.{rname}"
+                    resources.append(addr)
+                    resource_files.setdefault(relpath, []).append(addr)
                     names.append(rname)
                     # python-hcl2 wraps every attribute value in a 1-element list,
                     # so `tags = { ... }` arrives as [{...}] — unwrap before reading.
@@ -60,6 +63,7 @@ def parse_repo(path: str) -> dict:
     return {
         "files": files,
         "resources": resources,
+        "resource_files": resource_files,
         "variables": variables,
         "conventions": {"naming": naming, "tagging": sorted(tag_keys)},
     }

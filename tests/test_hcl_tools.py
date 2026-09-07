@@ -9,6 +9,13 @@ def test_parse_repo_extracts_resources_and_variables():
     assert set(ctx["variables"]) >= {"region", "environment", "resource_name_prefix"}
 
 
+def test_parse_repo_records_which_file_defines_each_resource():
+    ctx = parse_repo(SAMPLE_REPO)
+    assert ctx["resource_files"] == {
+        "s3.tf": ["aws_s3_bucket.app_data", "aws_s3_bucket_versioning.app_data"]
+    }
+
+
 def test_parse_repo_picks_up_the_tagging_convention():
     # python-hcl2 wraps `tags = {...}` as [{...}]; parse_repo must unwrap it
     ctx = parse_repo(SAMPLE_REPO)

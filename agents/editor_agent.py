@@ -17,6 +17,9 @@ def _build_prompt(change_plan: list[dict], repo_context: dict) -> str:
         "Be reliable and trustworthy: preserve every existing resource, variable, and "
         "line not called for by the plan exactly as-is. Never remove or alter anything "
         "outside the plan's scope, and don't introduce resources the plan didn't ask for.\n\n"
+        "Write each step's resources into the file its plan step names. If that file "
+        "isn't in 'Current files' below, create it — return it as a new file_edit with "
+        "its full content. Don't move existing resources between files or merge files.\n\n"
         f"Current files:\n{files_desc}\n\n"
         f"Plan:\n{plan_desc}"
     )

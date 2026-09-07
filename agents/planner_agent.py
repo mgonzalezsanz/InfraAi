@@ -8,6 +8,13 @@ _STATUS_BY_INTENT = {
 }
 
 
+def _resources_by_file(repo_context: dict) -> str:
+    resource_files = repo_context.get("resource_files", {})
+    if not resource_files:
+        return "  (no resources defined yet)"
+    return "\n".join(f"  - {path}: {', '.join(addrs)}" for path, addrs in resource_files.items())
+
+
 def _build_prompt(user_request: str, repo_context: dict) -> str:
     variables = repo_context.get('variables', [])
     has_prefix = 'resource_name_prefix' in variables
@@ -26,6 +33,12 @@ def _build_prompt(user_request: str, repo_context: dict) -> str:
         "listed there. If you're not confident a request maps cleanly to one intent, "
         "classify it as \"ambiguous\" rather than guessing.\n\n"
         f"{prefix_note}"
+        "File layout: group resources into a file named for their AWS service — an "
+        "`aws_s3_bucket` (and its versioning/lifecycle) goes in `s3.tf`, an "
+        "`aws_iam_role` in `iam.tf`, an `aws_lambda_function` in `lambda.tf`, and so "
+        "on. Reuse the service file if it already exists in the layout below; name a "
+        "new one if it doesn't. Don't pile new resources into `main.tf`. Each "
+        "change_plan step's `file` is that target file.\n\n"
         "Classify the user's request as exactly one of:\n"
         '- "change": a concrete infrastructure change to make. Produce a change_plan: '
         "one or more file-level steps (file, action, detail).\n"
@@ -35,7 +48,7 @@ def _build_prompt(user_request: str, repo_context: dict) -> str:
         "clarifying question.\n\n"
         "Existing repo context:\n"
         f"- files: {list(repo_context.get('files', {}).keys())}\n"
-        f"- resources: {repo_context.get('resources', [])}\n"
+        f"- resources by file:\n{_resources_by_file(repo_context)}\n"
         f"- variables: {variables}\n"
         f"- conventions: {repo_context.get('conventions', {})}\n\n"
         f"User request: {user_request}"

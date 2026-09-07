@@ -102,3 +102,9 @@ def test_config_example_has_budget_and_allowed_resources():
 
     assert isinstance(config["budget_ceiling_usd_per_month"], (int, float))
     assert config["allowed_resource_types"]
+
+
+def test_gitignore_covers_terraform_state_and_plan_artifacts():
+    ignore = (TEMPLATE_DIR / ".gitignore").read_text()
+    for pattern in (".terraform/", "*.tfstate", "tfplan", "tfdestroy"):
+        assert pattern in ignore

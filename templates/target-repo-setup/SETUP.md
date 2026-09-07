@@ -136,8 +136,14 @@ The apply job runs on an ephemeral runner. You need a remote backend.
 - `plan.yml` → `.github/workflows/plan.yml`
 - `apply.yml` → `.github/workflows/apply.yml`
 - `destroy.yml` → `.github/workflows/destroy.yml`
+- `.gitignore` → repo root (Terraform artifacts, plan files, `.DS_Store`).
 - `infrai.config.yaml.example` → `infrai.config.yaml`, fill in your real budget
   ceiling and allowed resource types.
+
+**File layout:** InfraAI follows whatever file layout your repo already uses. For
+resources it can't place from an existing pattern, it puts each in a file named
+for its AWS service (`s3.tf`, `iam.tf`, …). Terraform loads every `*.tf` in the
+directory, so file organisation is convention only.
 - All three workflows pin `terraform_version` to the same value — keep them in
   sync so a saved plan stays valid when `apply.yml` consumes it.
 - `workflow_dispatch` workflows only show a **Run workflow** button once the file

@@ -76,6 +76,16 @@ def test_planner_prompt_omits_prefix_instruction_when_not_configured():
     assert "resource_name_prefix" not in prompt
 
 
+def test_planner_prompt_shows_the_file_layout_and_the_grouping_rule():
+    prompt = _build_prompt(
+        "add an iam role",
+        {"resource_files": {"s3.tf": ["aws_s3_bucket.app_data"]}},
+    )
+    assert "s3.tf: aws_s3_bucket.app_data" in prompt   # existing layout
+    assert "named for their AWS service" in prompt     # the grouping rule
+    assert "iam.tf" in prompt                          # a worked example
+
+
 def test_planner_agent_classifies_ambiguous_intent():
     fake = _FakeLLM(PlannerOutput(intent="ambiguous", agent_message="Which resource do you mean?"))
     result = planner_agent(create_initial_state("help"), llm=fake)
@@ -102,6 +112,18 @@ def test_editor_agent_produces_diff_from_plan():
     assert result["status"] == "validating"
     assert "new" in result["diff"]
     assert "new" in result["repo_context"]["files"]["main.tf"]
+
+
+def test_editor_agent_can_add_a_new_service_file():
+    state = create_initial_state("Add an IAM role")
+    state["repo_context"] = {"files": {"s3.tf": 'resource "aws_s3_bucket" "app_data" {}\n'}}
+    state["change_plan"] = [{"file": "iam.tf", "action": "add_resource", "detail": "Add an IAM role"}]
+    fake = _FakeLLM(
+        EditorOutput(file_edits=[FileEdit(path="iam.tf", content='resource "aws_iam_role" "app" {}\n')])
+    )
+    result = editor_agent(state, llm=fake)
+    assert result["repo_context"]["files"]["iam.tf"] == 'resource "aws_iam_role" "app" {}\n'
+    assert result["repo_context"]["files"]["s3.tf"] == 'resource "aws_s3_bucket" "app_data" {}\n'  # untouched
 
 
 def test_editor_agent_leaves_files_outside_the_plan_byte_identical():
