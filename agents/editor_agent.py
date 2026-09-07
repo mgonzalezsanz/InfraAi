@@ -25,9 +25,9 @@ def _build_prompt(change_plan: list[dict], repo_context: dict) -> str:
     )
 
 
-def editor_agent(state: InfraAIState, *, llm=None) -> dict:
+def editor_agent(state: InfraAIState, *, llm=None, api_key=None) -> dict:
     """Produces a minimal diff via LLM, re-invoked with error context on validator failure."""
-    llm = llm or get_editor_llm()
+    llm = llm or get_editor_llm(api_key)
     repo_context = state.get("repo_context", {})
     result = llm.invoke(_build_prompt(state.get("change_plan", []), repo_context))
 

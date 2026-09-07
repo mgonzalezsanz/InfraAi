@@ -20,3 +20,10 @@
     {% endif %}
   {% endif %}
 </div>
+
+{% if oob_sidebar %}
+<a href="/runs/{{ run_id }}" id="conv-{{ run_id }}" class="conv active" hx-swap-oob="true">
+  <span class="conv-label">{{ user_request }}</span>
+  <span class="status status-{{ sidebar_status }}">{{ sidebar_status }}</span>
+</a>
+{% endif %}

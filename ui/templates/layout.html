@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}InfraAI{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/">InfraAI</a>
+    <a class="new-conv" href="/">+ New conversation</a>
+
+    <nav class="conversations">
+      {% for c in conversations %}
+        <a href="/runs/{{ c.id }}" id="conv-{{ c.id }}" class="conv{% if c.id == active_id %} active{% endif %}">
+          <span class="conv-label">{{ c.label }}</span>
+          <span class="status status-{{ c.status }}">{{ c.status }}</span>
+        </a>
+      {% else %}
+        <p class="empty">No conversations yet.</p>
+      {% endfor %}
+    </nav>
+
+    <details class="settings"{% if not target_repo or not has_api_key %} open{% endif %}>
+      <summary>Settings</summary>
+      <form method="post" action="/settings">
+        <input type="text" name="target_repo" value="{{ target_repo }}"
+               placeholder="target repo — owner/repo" autocomplete="off" spellcheck="false">
+        <input type="password" name="anthropic_api_key" autocomplete="off"
+               placeholder="{% if has_api_key %}API key set — blank keeps it{% else %}Anthropic API key — sk-ant-…{% endif %}">
+        <button type="submit">Save</button>
+      </form>
+    </details>
+  </aside>
+
+  <main class="main">
+    {% block main %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -39,9 +39,18 @@ class EditorOutput(BaseModel):
 # steered via system-prompt instructions in each agent's prompt instead.
 
 
-def get_planner_llm():
-    return ChatAnthropic(model=DEFAULT_MODEL).with_structured_output(PlannerOutput)
+def _chat(api_key: str | None):
+    # only pass api_key when we actually have one, so ChatAnthropic keeps its
+    # own ANTHROPIC_API_KEY env fallback otherwise
+    kwargs = {"model": DEFAULT_MODEL}
+    if api_key:
+        kwargs["api_key"] = api_key
+    return ChatAnthropic(**kwargs)
 
 
-def get_editor_llm():
-    return ChatAnthropic(model=DEFAULT_MODEL).with_structured_output(EditorOutput)
+def get_planner_llm(api_key: str | None = None):
+    return _chat(api_key).with_structured_output(PlannerOutput)
+
+
+def get_editor_llm(api_key: str | None = None):
+    return _chat(api_key).with_structured_output(EditorOutput)

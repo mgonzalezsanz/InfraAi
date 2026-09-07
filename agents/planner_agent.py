@@ -55,9 +55,9 @@ def _build_prompt(user_request: str, repo_context: dict) -> str:
     )
 
 
-def planner_agent(state: InfraAIState, *, llm=None) -> dict:
+def planner_agent(state: InfraAIState, *, llm=None, api_key=None) -> dict:
     """Classifies intent and produces a plan, answer, or clarifying question."""
-    llm = llm or get_planner_llm()
+    llm = llm or get_planner_llm(api_key)
     result = llm.invoke(_build_prompt(state["user_request"], state.get("repo_context", {})))
 
     update = {"intent": result.intent, "status": _STATUS_BY_INTENT[result.intent]}

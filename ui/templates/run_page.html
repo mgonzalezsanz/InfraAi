@@ -1,16 +1,9 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>InfraAI — run {{ run_id }}</title>
-  <link rel="stylesheet" href="/static/style.css">
-  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-</head>
-<body>
-  <main class="card">
-    <h1><a class="home-link" href="/">InfraAI</a></h1>
-    {% include "run_fragment.html" %}
-  </main>
-</body>
-</html>
+{% extends "layout.html" %}
+
+{% block title %}InfraAI — {{ run_id }}{% endblock %}
+
+{% block main %}
+<div class="card">
+  {% include "run_fragment.html" %}
+</div>
+{% endblock %}
