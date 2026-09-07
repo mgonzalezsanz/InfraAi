@@ -36,6 +36,7 @@ def context_agent(
 
     return {
         "repo_context": repo_context,
+        "base_files": dict(repo_context.get("files", {})),  # frozen; repo_context["files"] mutates as the editor runs
         "config": config,
         "status": "planning",
     }

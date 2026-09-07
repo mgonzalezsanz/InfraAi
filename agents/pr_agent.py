@@ -45,7 +45,9 @@ def _pr_body(state: InfraAIState) -> str:
         f"**Diff:**\n```diff\n{state.get('diff', '')}\n```\n\n"
         f"**Security & policy findings:**\n{findings_desc}\n\n"
         f"**Cost delta:** ${cost.get('delta_usd', 0):.2f}/mo — {_budget_note(cost)}\n\n"
-        "_Opened by InfraAI._"
+        "_Opened by InfraAI. This branch is rebuilt from the base branch on every "
+        "run — review the change in this PR, and don't push commits to the branch "
+        "(they'll be overwritten)._"
     )
 
 
@@ -60,6 +62,7 @@ def pr_agent(state: InfraAIState, *, target_repo: str | None = None, open_pr=Non
         files=state.get("repo_context", {}).get("files", {}),
         title=f"InfraAI: {state['user_request']}"[:72],
         body=_pr_body(state),
+        base_files=state.get("base_files") or None,
     )
 
     return {"pr_url": url, "status": "pr_open"}

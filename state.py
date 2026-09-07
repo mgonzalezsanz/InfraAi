@@ -3,7 +3,8 @@ from typing import Literal, TypedDict
 
 class InfraAIState(TypedDict):
     user_request: str
-    repo_context: dict          # existing resources, variables, conventions
+    repo_context: dict          # existing resources, variables, conventions (files mutate as the editor works)
+    base_files: dict            # frozen snapshot of the repo's files at context time, for drift detection
     config: dict                # target repo's infrai.config.yaml: budget ceiling, allowed resource types
     intent: Literal["change", "question", "ambiguous"] | None   # set by planner agent
     change_plan: list[dict]     # planner's file-level plan
@@ -31,6 +32,7 @@ def create_initial_state(user_request: str) -> InfraAIState:
     return InfraAIState(
         user_request=user_request,
         repo_context={},
+        base_files={},
         config={},
         intent=None,
         change_plan=[],

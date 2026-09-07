@@ -252,3 +252,4 @@ def test_pr_body_carries_every_required_section():
     assert "```diff" in body                       # diff
     assert "CKV_AWS_1" in body                     # security findings
     assert "$3.00/mo" in body                      # cost delta
+    assert "don't push commits to the branch" in body  # branch is rebuilt each run
