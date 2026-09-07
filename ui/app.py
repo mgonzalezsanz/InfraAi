@@ -1,7 +1,10 @@
 import os
+import re
 import threading
 import uuid
+from html import escape
 
+import markdown as _markdown
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -9,6 +12,15 @@ from fastapi.templating import Jinja2Templates
 
 from graph import build_graph
 from state import create_initial_state
+
+
+def _render_markdown(text: str | None) -> str:
+    # escape first so any stray HTML in an LLM message renders inert, then let
+    # Markdown turn **bold** / lists / etc. into real elements
+    safe = escape(text or "")
+    # LLMs routinely omit the blank line Markdown wants before a list
+    safe = re.sub(r"(?<=\S)\n(?=(?:[-*+]|\d+\.)\s)", "\n\n", safe)
+    return _markdown.markdown(safe, extensions=["sane_lists"])
 
 # Server-remembered settings. The settings form overrides and remembers; a blank
 # API-key field keeps the current one (a blank target repo clears it). Seeded
@@ -22,6 +34,7 @@ _settings = {
 
 app = FastAPI(title="InfraAI")
 templates = Jinja2Templates(directory="ui/templates")
+templates.env.filters["markdown"] = _render_markdown
 app.mount("/static", StaticFiles(directory="ui/static"), name="static")
 
 # Conversations for this app run, keyed by id, in creation order.

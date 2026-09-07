@@ -66,6 +66,14 @@ def test_planner_agent_classifies_question_intent():
     assert result["agent_message"]
 
 
+def test_planner_agent_strips_leaked_scaffold_tags_from_the_message():
+    fake = _FakeLLM(
+        PlannerOutput(intent="question", agent_message="It's eu-west-3.</agent_message> </invoke>")
+    )
+    result = planner_agent(create_initial_state("what region?"), llm=fake)
+    assert result["agent_message"] == "It's eu-west-3."
+
+
 def test_planner_prompt_instructs_resource_name_prefix_when_configured():
     prompt = _build_prompt("add a bucket", {"variables": ["resource_name_prefix", "region"]})
     assert "var.resource_name_prefix" in prompt

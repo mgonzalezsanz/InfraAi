@@ -209,9 +209,18 @@ button:hover { filter: brightness(1.1); }
 }
 
 .result.success { background: rgba(62, 207, 142, 0.12); color: var(--green); }
-.result.message { background: rgba(91, 140, 255, 0.12); color: var(--accent); }
+.result.message { background: rgba(91, 140, 255, 0.1); color: var(--text); line-height: 1.5; }
 .result.error { background: rgba(239, 90, 90, 0.12); color: var(--red); }
-.result a { color: inherit; font-weight: 600; }
+.result a { color: var(--accent); font-weight: 600; }
+
+.result.message > :first-child { margin-top: 0; }
+.result.message > :last-child { margin-bottom: 0; }
+.result.message p { margin: 0 0 0.6rem; }
+.result.message ul, .result.message ol { margin: 0 0 0.6rem; padding-left: 1.25rem; }
+.result.message li { margin: 0.15rem 0; }
+.result.message li > p { margin: 0; }
+.result.message code { background: rgba(255,255,255,0.08); padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.85em; }
+.result.message strong { color: var(--text); }
 
 /* ---- narrow screens ---- */
 

@@ -96,6 +96,15 @@ def test_run_fragment_shows_agent_message():
     assert "eu-west-3" in resp.text
 
 
+def test_agent_message_renders_markdown_and_escapes_html():
+    _seed_run("fake-md", result={"agent_message": "I can:\n- **make changes**\n- <script>alert(1)</script>"})
+    resp = client.get("/runs/fake-md", headers={"HX-Request": "true"})
+    assert "<strong>make changes</strong>" in resp.text        # markdown rendered
+    assert "<li>" in resp.text                                  # list rendered
+    assert "<script>alert(1)</script>" not in resp.text         # raw HTML neutralised
+    assert "&lt;script&gt;" in resp.text
+
+
 def test_run_fragment_shows_error():
     _seed_run("fake-err", log=[], error="something broke", result={})
     resp = client.get("/runs/fake-err", headers={"HX-Request": "true"})

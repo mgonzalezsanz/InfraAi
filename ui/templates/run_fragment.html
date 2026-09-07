@@ -16,7 +16,7 @@
     {% if pr_url %}
       <p class="result success">PR opened: <a href="{{ pr_url }}" target="_blank" rel="noopener">{{ pr_url }}</a></p>
     {% elif message %}
-      <p class="result message">{{ message }}</p>
+      <div class="result message">{{ message | markdown | safe }}</div>
     {% endif %}
   {% endif %}
 </div>

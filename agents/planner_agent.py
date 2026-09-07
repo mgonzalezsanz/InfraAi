@@ -1,3 +1,5 @@
+import re
+
 from state import InfraAIState
 from tools.llm import get_planner_llm
 
@@ -6,6 +8,21 @@ _STATUS_BY_INTENT = {
     "question": "answered",
     "ambiguous": "needs_clarification",
 }
+
+# The model sometimes leaks its structured-output scaffolding into a string field
+# (e.g. a trailing "</agent_message> </invoke>"). Strip a trailing run of tags
+# whose names are known scaffolding words — nothing a real answer would end with.
+_SCAFFOLD_TAIL = re.compile(
+    r"(?:\s*</?(?:antml:)?(?:invoke|parameter|function_calls|agent_message|change_plan|tool_call)\b[^>]*>)+\s*$",
+    re.IGNORECASE,
+)
+
+
+def _clean_message(text: str | None) -> str | None:
+    if not text:
+        return text
+    stripped = _SCAFFOLD_TAIL.sub("", text).strip()
+    return stripped or text
 
 
 def _resources_by_file(repo_context: dict) -> str:
@@ -46,6 +63,8 @@ def _build_prompt(user_request: str, repo_context: dict) -> str:
         "repo context below. Produce an agent_message with the answer.\n"
         '- "ambiguous": too vague to plan or answer. Produce an agent_message asking a '
         "clarifying question.\n\n"
+        "agent_message is plain prose or short Markdown (a sentence or two, or a bullet "
+        "list) — never wrap it in XML/HTML tags.\n\n"
         "Existing repo context:\n"
         f"- files: {list(repo_context.get('files', {}).keys())}\n"
         f"- resources by file:\n{_resources_by_file(repo_context)}\n"
@@ -64,5 +83,5 @@ def planner_agent(state: InfraAIState, *, llm=None, api_key=None) -> dict:
     if result.intent == "change":
         update["change_plan"] = [step.model_dump() for step in result.change_plan]
     else:
-        update["agent_message"] = result.agent_message
+        update["agent_message"] = _clean_message(result.agent_message)
     return update
