@@ -54,3 +54,18 @@ def test_run_fragment_shows_error():
     }
     resp = client.get("/runs/fake-error", headers={"HX-Request": "true"})
     assert "something broke" in resp.text
+
+
+def test_run_fragment_shows_validator_retry_count():
+    ui_app._runs["fake-retry"] = {
+        "user_request": "add a bucket",
+        "log": [
+            {"node": "editor", "status": "validating", "retry_count": 0},
+            {"node": "validator", "status": "editing", "retry_count": 2},
+        ],
+        "done": False,
+        "error": None,
+        "result": {},
+    }
+    resp = client.get("/runs/fake-retry", headers={"HX-Request": "true"})
+    assert "retry 2/3" in resp.text

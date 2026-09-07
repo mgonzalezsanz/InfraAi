@@ -1,7 +1,7 @@
 from agents.context_agent import context_agent
 from agents.editor_agent import editor_agent
 from agents.planner_agent import _build_prompt, planner_agent
-from agents.pr_agent import pr_agent
+from agents.pr_agent import _pr_body, pr_agent
 from agents.security_cost_agent import security_cost_agent
 from agents.validator_agent import validator_agent
 from state import create_initial_state
@@ -102,6 +102,26 @@ def test_editor_agent_produces_diff_from_plan():
     assert result["status"] == "validating"
     assert "new" in result["diff"]
     assert "new" in result["repo_context"]["files"]["main.tf"]
+
+
+def test_editor_agent_leaves_files_outside_the_plan_byte_identical():
+    variables_tf = 'variable "region" {\n  default = "eu-west-3"\n}\n'
+    state = create_initial_state("Add a bucket")
+    state["repo_context"] = {
+        "files": {"main.tf": 'resource "aws_s3_bucket" "old" {}\n', "variables.tf": variables_tf}
+    }
+    state["change_plan"] = [{"file": "main.tf", "action": "add_resource", "detail": "Add a bucket"}]
+    fake = _FakeLLM(
+        EditorOutput(
+            file_edits=[
+                FileEdit(path="main.tf", content='resource "aws_s3_bucket" "old" {}\nresource "aws_s3_bucket" "new" {}\n')
+            ]
+        )
+    )
+    result = editor_agent(state, llm=fake)
+    # variables.tf isn't in the plan -> untouched, and never appears in the diff
+    assert result["repo_context"]["files"]["variables.tf"] == variables_tf
+    assert "variables.tf" not in result["diff"]
 
 
 def test_validator_agent_reports_valid_plan():
@@ -216,3 +236,19 @@ def test_pr_agent_returns_pr_url():
     result = pr_agent(create_initial_state("Add a bucket"), open_pr=fake_open_pr)
     assert result["pr_url"].startswith("https://")
     assert result["status"] == "pr_open"
+
+
+def test_pr_body_carries_every_required_section():
+    state = create_initial_state("Add a logs bucket")
+    state["change_plan"] = [{"file": "main.tf", "action": "add_resource", "detail": "add bucket"}]
+    state["diff"] = '+resource "aws_s3_bucket" "logs" {}'
+    state["validation_result"] = {"plan": {"summary": {"add": 1, "change": 0, "destroy": 0}}}
+    state["security_findings"] = [{"check_id": "CKV_AWS_1", "check_name": "some check", "resource": "logs"}]
+    state["cost_estimate"] = {"delta_usd": 3.0, "within_budget": True, "budget_ceiling_usd_per_month": 100}
+
+    body = _pr_body(state)
+    assert "add bucket" in body                    # change plan
+    assert "1 to add, 0 to change, 0 to destroy" in body  # terraform plan output
+    assert "```diff" in body                       # diff
+    assert "CKV_AWS_1" in body                     # security findings
+    assert "$3.00/mo" in body                      # cost delta

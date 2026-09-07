@@ -23,6 +23,15 @@ def _budget_note(cost: dict) -> str:
     return f"**⚠️ OVER the ${ceiling:g}/mo ceiling**"
 
 
+def _tf_plan_line(state: InfraAIState) -> str:
+    summary = (state.get("validation_result", {}).get("plan") or {}).get("summary", {})
+    return (
+        f"{summary.get('add', 0)} to add, "
+        f"{summary.get('change', 0)} to change, "
+        f"{summary.get('destroy', 0)} to destroy"
+    )
+
+
 def _pr_body(state: InfraAIState) -> str:
     findings = state.get("security_findings", [])
     findings_desc = "\n".join(f"- `{f['check_id']}` {f['check_name']} ({f['resource']})" for f in findings) or "None"
@@ -32,6 +41,7 @@ def _pr_body(state: InfraAIState) -> str:
     return (
         f"**Request:** {state['user_request']}\n\n"
         f"**Plan:**\n{plan_desc}\n\n"
+        f"**Terraform plan:** {_tf_plan_line(state)}\n\n"
         f"**Diff:**\n```diff\n{state.get('diff', '')}\n```\n\n"
         f"**Security & policy findings:**\n{findings_desc}\n\n"
         f"**Cost delta:** ${cost.get('delta_usd', 0):.2f}/mo — {_budget_note(cost)}\n\n"

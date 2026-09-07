@@ -57,6 +57,27 @@ def test_ambiguous_request_ends_needs_clarification():
     assert result["pr_url"] is None
 
 
+def test_change_request_escalates_to_needs_human_after_three_failed_validations():
+    planner_llm = _FakeLLM(
+        PlannerOutput(
+            intent="change",
+            change_plan=[ChangeStep(file="main.tf", action="add_resource", detail="add a bucket")],
+        )
+    )
+    editor_llm = _FakeLLM(EditorOutput(file_edits=[FileEdit(path="main.tf", content="# still broken\n")]))
+    graph = build_graph(
+        planner_llm=planner_llm,
+        editor_llm=editor_llm,
+        validate_fn=lambda files: {"valid": False, "errors": ["syntax error"]},
+        open_pr_fn=lambda **kwargs: "should-never-be-called",
+    )
+
+    result = graph.invoke(create_initial_state("Add a bucket"))
+    assert result["status"] == "needs_human"
+    assert result["retry_count"] == 3
+    assert result["pr_url"] is None
+
+
 def test_route_after_planner_change():
     assert route_after_planner({"intent": "change"}) == "change"
 

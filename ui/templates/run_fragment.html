@@ -3,7 +3,7 @@
 
   <ul class="log">
     {% for entry in log %}
-    <li><span class="node">{{ entry.node }}</span><span class="status status-{{ entry.status }}">{{ entry.status }}</span></li>
+    <li><span class="node">{{ entry.node }}</span><span class="entry-meta">{% if entry.retry_count %}<span class="retry">retry {{ entry.retry_count }}/3</span>{% endif %}<span class="status status-{{ entry.status }}">{{ entry.status }}</span></span></li>
     {% endfor %}
     {% if not done %}<li class="pending">running…</li>{% endif %}
   </ul>

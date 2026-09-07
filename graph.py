@@ -24,6 +24,12 @@ def route_after_validator(state: InfraAIState) -> str:
     return "retry"
 
 
+def escalate(state: InfraAIState) -> dict:
+    """Terminal node: the editor/validator loop failed 3 times. Hand to a human
+    instead of looping forever."""
+    return {"status": "needs_human"}
+
+
 def build_graph(
     repo_path=None,
     target_repo=None,
@@ -44,6 +50,7 @@ def build_graph(
     graph.add_node("validator", partial(validator_agent, validate=validate_fn, plan=plan_fn))
     graph.add_node("security_cost", partial(security_cost_agent, checkov=checkov_fn, infracost=infracost_fn))
     graph.add_node("pr", partial(pr_agent, target_repo=target_repo, open_pr=open_pr_fn))
+    graph.add_node("escalate", escalate)
 
     graph.set_entry_point("context")
     graph.add_edge("context", "planner")
@@ -56,10 +63,11 @@ def build_graph(
     graph.add_conditional_edges(
         "validator",
         route_after_validator,
-        {"pass": "security_cost", "retry": "editor", "escalate": END},
+        {"pass": "security_cost", "retry": "editor", "escalate": "escalate"},
     )
     graph.add_edge("security_cost", "pr")
     graph.add_edge("pr", END)
+    graph.add_edge("escalate", END)
 
     return graph.compile()
 

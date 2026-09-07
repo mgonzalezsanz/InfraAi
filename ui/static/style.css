@@ -108,6 +108,9 @@ button:hover { filter: brightness(1.1); }
 
 .node { color: var(--text); }
 
+.entry-meta { display: flex; gap: 0.6rem; }
+.retry { color: var(--amber); }
+
 .status { color: var(--muted); text-transform: lowercase; }
 .status-pr_open, .status-answered { color: var(--green); }
 .status-needs_clarification, .status-needs_human { color: var(--amber); }

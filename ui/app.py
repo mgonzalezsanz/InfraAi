@@ -31,8 +31,14 @@ def _execute(run_id: str, user_request: str) -> None:
         graph = build_graph(target_repo=TARGET_REPO)
         for update in graph.stream(create_initial_state(user_request), stream_mode="updates"):
             for node_name, node_update in update.items():
-                log.append({"node": node_name, "status": node_update.get("status")})
                 result.update(node_update)
+                log.append(
+                    {
+                        "node": node_name,
+                        "status": node_update.get("status"),
+                        "retry_count": result.get("retry_count", 0),
+                    }
+                )
                 with _lock:
                     _runs[run_id]["log"] = list(log)
                     _runs[run_id]["result"] = dict(result)

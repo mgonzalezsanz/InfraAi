@@ -4,7 +4,7 @@ import json
 import subprocess
 
 from tools import security_tools
-from tools.github_tools import fetch_repo_files
+from tools.github_tools import branch_name_for, fetch_repo_files, open_or_update_pr
 
 
 _INFRACOST_V2_JSON = json.dumps(
@@ -98,3 +98,51 @@ def test_fetch_repo_files_raises_when_gh_fails(monkeypatch):
         assert "Not Found" in str(exc)
     else:
         raise AssertionError("expected RuntimeError")
+
+
+def test_branch_name_is_deterministic_per_request():
+    assert branch_name_for("Add an S3 bucket") == branch_name_for("Add an S3 bucket")
+    assert branch_name_for("Add an S3 bucket") != branch_name_for("Add a VPC")
+
+
+class _FakeGh:
+    """Records every gh/git call; returns the given `gh pr list` output and a
+    fixed URL for `gh pr create`."""
+
+    def __init__(self, pr_list_stdout: str):
+        self.calls: list[list[str]] = []
+        self._pr_list_stdout = pr_list_stdout
+
+    def __call__(self, cmd, *args, **kwargs):
+        self.calls.append(cmd)
+        if cmd[:3] == ["gh", "pr", "list"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout=self._pr_list_stdout, stderr="")
+        if cmd[:3] == ["gh", "pr", "create"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout="https://github.com/o/r/pull/7\n", stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    def ran(self, prefix: str) -> bool:
+        return any(" ".join(c).startswith(prefix) for c in self.calls)
+
+
+def test_open_or_update_pr_creates_a_pr_when_none_is_open(monkeypatch):
+    fake = _FakeGh(pr_list_stdout="[]")
+    monkeypatch.setattr(subprocess, "run", fake)
+
+    url = open_or_update_pr("o/r", "infrai/add-bucket-abc123", {"main.tf": "x"}, "title", "body")
+
+    assert url == "https://github.com/o/r/pull/7"
+    assert fake.ran("gh pr create")
+    assert fake.ran("git checkout -b infrai/add-bucket-abc123")
+
+
+def test_open_or_update_pr_updates_the_existing_pr_instead_of_duplicating(monkeypatch):
+    fake = _FakeGh(pr_list_stdout='[{"url": "https://github.com/o/r/pull/3"}]')
+    monkeypatch.setattr(subprocess, "run", fake)
+
+    url = open_or_update_pr("o/r", "infrai/add-bucket-abc123", {"main.tf": "x"}, "title", "body")
+
+    assert url == "https://github.com/o/r/pull/3"  # the open PR, not a new one
+    assert not fake.ran("gh pr create")            # no duplicate
+    assert fake.ran("git fetch origin infrai/add-bucket-abc123")
+    assert fake.ran("git checkout infrai/add-bucket-abc123")
