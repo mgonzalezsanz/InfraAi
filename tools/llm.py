@@ -23,6 +23,7 @@ class PlannerOutput(BaseModel):
     intent: Literal["change", "question", "ambiguous"]
     change_plan: list[ChangeStep] = []
     agent_message: str | None = None
+    title: str | None = None  # concise PR title, only for "change" intent
 
 
 class FileEdit(BaseModel):

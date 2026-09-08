@@ -27,6 +27,7 @@ class InfraAIState(TypedDict):
     ]
     pr_url: str | None
     agent_message: str | None   # clarifying question or direct answer, when no PR is opened
+    pr_title: str | None        # planner's concise PR title, for "change" intent
 
 
 def create_initial_state(user_request: str) -> InfraAIState:
@@ -46,6 +47,7 @@ def create_initial_state(user_request: str) -> InfraAIState:
         status="planning",
         pr_url=None,
         agent_message=None,
+        pr_title=None,
     )
 
 

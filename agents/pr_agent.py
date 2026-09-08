@@ -32,10 +32,27 @@ def _tf_plan_line(state: InfraAIState) -> str:
     )
 
 
-def _first_request(state: InfraAIState) -> str:
-    """The conversation's opening ask — stable across follow-up turns."""
+def _pr_request(state: InfraAIState) -> str:
+    """The ask this PR fulfils — stable across the follow-up turns of one request.
+
+    Walks past any resolved question/answer exchange earlier in the thread: the
+    request is the first user message after the last turn the planner answered
+    outright (`status == "answered"`). A clarification exchange
+    (`needs_clarification`) is part of the same request, so it isn't a boundary.
+    So a conversation that opened with a question still gets a PR titled for the
+    change, not the question.
+    """
     messages = state.get("messages") or []
-    return messages[0]["content"] if messages else state["user_request"]
+    if not messages:
+        return state["user_request"]
+    start = 0
+    for i, m in enumerate(messages):
+        if m["role"] == "agent" and m.get("status") == "answered":
+            start = i + 1
+    for m in messages[start:]:
+        if m["role"] == "user":
+            return m["content"]
+    return messages[0]["content"]
 
 
 def _pr_body(state: InfraAIState) -> str:
@@ -45,7 +62,7 @@ def _pr_body(state: InfraAIState) -> str:
     cost = state.get("cost_estimate", {})
 
     return (
-        f"**Request:** {_first_request(state)}\n\n"
+        f"**Request:** {_pr_request(state)}\n\n"
         f"**Plan:**\n{plan_desc}\n\n"
         f"**Terraform plan:** {_tf_plan_line(state)}\n\n"
         f"**Diff:**\n```diff\n{state.get('diff', '')}\n```\n\n"
@@ -57,18 +74,26 @@ def _pr_body(state: InfraAIState) -> str:
     )
 
 
+def _pr_title(state: InfraAIState) -> str:
+    """The planner's summary of the change, falling back to the raw request when
+    it didn't produce one (e.g. a validator retry landed here without re-planning,
+    or the graph was invoked directly)."""
+    summary = (state.get("pr_title") or "").strip() or _pr_request(state)
+    return f"InfraAI: {summary}"[:72]
+
+
 def pr_agent(state: InfraAIState, *, target_repo: str | None = None, open_pr=None, branch_key: str | None = None) -> dict:
     """Opens a branch + PR with a full summary. `branch_key` (the conversation id)
     keeps every turn of a conversation on the same branch/PR; it falls back to the
-    opening request so a one-shot run still gets a stable branch."""
+    request text so a one-shot run still gets a stable branch."""
     open_pr = open_pr or _open_or_update_pr
-    branch = branch_name_for(branch_key or _first_request(state))
+    branch = branch_name_for(branch_key or _pr_request(state))
 
     url = open_pr(
         repo=target_repo or DEFAULT_TARGET_REPO,
         branch=branch,
         files=state.get("repo_context", {}).get("files", {}),
-        title=f"InfraAI: {_first_request(state)}"[:72],
+        title=_pr_title(state),
         body=_pr_body(state),
         base_files=state.get("base_files") or None,
     )

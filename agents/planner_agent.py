@@ -72,7 +72,9 @@ def _build_prompt(messages: list[dict], repo_context: dict) -> str:
         "change_plan step's `file` is that target file.\n\n"
         "Classify the user's request as exactly one of:\n"
         '- "change": a concrete infrastructure change to make. Produce a change_plan: '
-        "one or more file-level steps (file, action, detail).\n"
+        "one or more file-level steps (file, action, detail). Also produce a title: "
+        "a concise imperative summary of the change for the pull request title "
+        '(≤60 chars, no trailing period, e.g. "Add versioned S3 bucket for app logs").\n'
         '- "question": a question about the existing infrastructure, answerable from the '
         "repo context below. Produce an agent_message with the answer.\n"
         '- "ambiguous": too vague to plan or answer. Produce an agent_message asking a '
@@ -97,6 +99,7 @@ def planner_agent(state: InfraAIState, *, llm=None, api_key=None) -> dict:
     update = {"intent": result.intent, "status": _STATUS_BY_INTENT[result.intent]}
     if result.intent == "change":
         update["change_plan"] = [step.model_dump() for step in result.change_plan]
+        update["pr_title"] = _clean_message(result.title)
     else:
         update["agent_message"] = _clean_message(result.agent_message)
     return update

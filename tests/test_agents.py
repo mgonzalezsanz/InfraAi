@@ -1,7 +1,7 @@
 from agents.context_agent import context_agent
 from agents.editor_agent import editor_agent
 from agents.planner_agent import _build_prompt, planner_agent
-from agents.pr_agent import _pr_body, pr_agent
+from agents.pr_agent import _pr_body, _pr_request, _pr_title, pr_agent
 from agents.security_cost_agent import security_cost_agent
 from agents.validator_agent import validator_agent
 from state import create_initial_state
@@ -50,12 +50,14 @@ def test_planner_agent_classifies_change_intent():
         PlannerOutput(
             intent="change",
             change_plan=[ChangeStep(file="main.tf", action="add_resource", detail="add a bucket")],
+            title="Add S3 bucket for logs",
         )
     )
     result = planner_agent(create_initial_state("Add a new S3 bucket for logs"), llm=fake)
     assert result["intent"] == "change"
     assert result["status"] == "editing"
     assert result["change_plan"]
+    assert result["pr_title"] == "Add S3 bucket for logs"
 
 
 def test_planner_agent_classifies_question_intent():
@@ -293,3 +295,40 @@ def test_pr_body_carries_every_required_section():
     assert "CKV_AWS_1" in body                     # security findings
     assert "$3.00/mo" in body                      # cost delta
     assert "don't push commits to the branch" in body  # branch is rebuilt each run
+
+
+def test_pr_request_skips_a_resolved_question_earlier_in_the_thread():
+    state = create_initial_state("what can you do?")
+    state["messages"] = [
+        {"role": "user", "content": "what can you do?"},
+        {"role": "agent", "content": "I can plan changes and answer questions.", "status": "answered"},
+        {"role": "user", "content": "add an s3 bucket named data"},
+    ]
+    assert _pr_request(state) == "add an s3 bucket named data"
+
+
+def test_pr_request_keeps_the_original_ask_through_a_clarification():
+    state = create_initial_state("add a lifecycle rule")
+    state["messages"] = [
+        {"role": "user", "content": "add a lifecycle rule"},
+        {"role": "agent", "content": "Which bucket?", "status": "needs_clarification"},
+        {"role": "user", "content": "app_logs"},
+    ]
+    assert _pr_request(state) == "add a lifecycle rule"
+
+
+def test_pr_request_falls_back_to_a_single_message_thread():
+    assert _pr_request(create_initial_state("add a bucket")) == "add a bucket"
+
+
+def test_pr_title_uses_the_planner_summary_when_present():
+    state = create_initial_state("i need an s3 bucket named data with versioning, 90 day expiry pls")
+    state["pr_title"] = "Add versioned S3 bucket with 90-day expiration"
+    assert _pr_title(state) == "InfraAI: Add versioned S3 bucket with 90-day expiration"
+
+
+def test_pr_title_falls_back_to_the_request_and_caps_length():
+    state = create_initial_state("x" * 200)
+    assert state.get("pr_title") is None
+    assert _pr_title(state).startswith("InfraAI: xxx")
+    assert len(_pr_title(state)) == 72

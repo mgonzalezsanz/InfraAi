@@ -103,7 +103,7 @@ def test_execute_streams_the_graph_and_appends_an_agent_message(monkeypatch):
     conv = _seed("c1", running=True, done=False)
     ui_app._execute("c1")
     assert conv["done"] and not conv["running"]
-    assert conv["messages"][-1] == {"role": "agent", "content": "It's eu-west-3."}
+    assert conv["messages"][-1] == {"role": "agent", "content": "It's eu-west-3.", "status": "answered"}
     assert conv["log"][-1]["status"] == "answered"
 
 

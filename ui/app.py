@@ -99,8 +99,11 @@ def _execute(conv_id: str) -> None:
     except Exception as exc:  # surfaced in the UI, not swallowed
         error = str(exc)
 
+    turn_status = "error" if error else result.get("status", "done")
     with _lock:
-        conv["messages"] = messages + [{"role": "agent", "content": _agent_turn_text(result, error)}]
+        conv["messages"] = messages + [
+            {"role": "agent", "content": _agent_turn_text(result, error), "status": turn_status}
+        ]
         conv["error"] = error
         conv["running"] = False
         conv["done"] = True

@@ -183,8 +183,8 @@ with a lifecycle rule went request → plan → validate → scan → PR → mer
 plan → CI apply, with the bucket verified live in AWS.
 
 - 80+ pytest tests, all offline (LLM and every external CLI faked)
-- Every functional requirement in the spec has a matching acceptance test
-- Not yet built: the optional sandbox demo-apply mode, multi-cloud, multi-repo
+- Every functional requirement has a matching acceptance test
+- Not yet built: multi-cloud, multi-repo
 
 ## License
 
