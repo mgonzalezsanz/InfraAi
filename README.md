@@ -1,5 +1,7 @@
 # InfraAi
 
+[![tests](https://github.com/mgonzalezsanz/InfraAi/actions/workflows/test.yml/badge.svg)](https://github.com/mgonzalezsanz/InfraAi/actions/workflows/test.yml)
+
 Agentic system that turns a natural-language infrastructure request into a
 validated, human-reviewed Terraform change — LangGraph multi-agent orchestration
 with a PR-gated safety model.
