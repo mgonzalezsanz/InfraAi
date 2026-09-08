@@ -32,6 +32,12 @@ def _tf_plan_line(state: InfraAIState) -> str:
     )
 
 
+def _first_request(state: InfraAIState) -> str:
+    """The conversation's opening ask — stable across follow-up turns."""
+    messages = state.get("messages") or []
+    return messages[0]["content"] if messages else state["user_request"]
+
+
 def _pr_body(state: InfraAIState) -> str:
     findings = state.get("security_findings", [])
     findings_desc = "\n".join(f"- `{f['check_id']}` {f['check_name']} ({f['resource']})" for f in findings) or "None"
@@ -39,7 +45,7 @@ def _pr_body(state: InfraAIState) -> str:
     cost = state.get("cost_estimate", {})
 
     return (
-        f"**Request:** {state['user_request']}\n\n"
+        f"**Request:** {_first_request(state)}\n\n"
         f"**Plan:**\n{plan_desc}\n\n"
         f"**Terraform plan:** {_tf_plan_line(state)}\n\n"
         f"**Diff:**\n```diff\n{state.get('diff', '')}\n```\n\n"
@@ -51,16 +57,18 @@ def _pr_body(state: InfraAIState) -> str:
     )
 
 
-def pr_agent(state: InfraAIState, *, target_repo: str | None = None, open_pr=None) -> dict:
-    """Opens a branch + PR with a full summary, idempotent on repeated requests."""
+def pr_agent(state: InfraAIState, *, target_repo: str | None = None, open_pr=None, branch_key: str | None = None) -> dict:
+    """Opens a branch + PR with a full summary. `branch_key` (the conversation id)
+    keeps every turn of a conversation on the same branch/PR; it falls back to the
+    opening request so a one-shot run still gets a stable branch."""
     open_pr = open_pr or _open_or_update_pr
-    branch = branch_name_for(state["user_request"])
+    branch = branch_name_for(branch_key or _first_request(state))
 
     url = open_pr(
         repo=target_repo or DEFAULT_TARGET_REPO,
         branch=branch,
         files=state.get("repo_context", {}).get("files", {}),
-        title=f"InfraAI: {state['user_request']}"[:72],
+        title=f"InfraAI: {_first_request(state)}"[:72],
         body=_pr_body(state),
         base_files=state.get("base_files") or None,
     )

@@ -14,7 +14,7 @@
 
     <nav class="conversations">
       {% for c in conversations %}
-        <a href="/runs/{{ c.id }}" id="conv-{{ c.id }}" class="conv{% if c.id == active_id %} active{% endif %}">
+        <a href="/conversations/{{ c.id }}" id="conv-{{ c.id }}" class="conv{% if c.id == active_id %} active{% endif %}">
           <span class="conv-label">{{ c.label }}</span>
           <span class="status status-{{ c.status }}">{{ c.status }}</span>
         </a>

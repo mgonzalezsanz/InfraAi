@@ -32,7 +32,20 @@ def _resources_by_file(repo_context: dict) -> str:
     return "\n".join(f"  - {path}: {', '.join(addrs)}" for path, addrs in resource_files.items())
 
 
-def _build_prompt(user_request: str, repo_context: dict) -> str:
+def _history_block(messages: list[dict]) -> str:
+    if len(messages) <= 1:
+        return ""
+    thread = "\n".join(f"{m['role']}: {m['content']}" for m in messages[:-1])
+    return (
+        f"Conversation so far:\n{thread}\n\n"
+        "The user's latest message below continues this conversation — it may answer "
+        "a question you asked or add detail. Fold it into your plan or answer; don't "
+        "ask again for something already given above.\n\n"
+    )
+
+
+def _build_prompt(messages: list[dict], repo_context: dict) -> str:
+    user_request = messages[-1]["content"] if messages else ""
     variables = repo_context.get('variables', [])
     has_prefix = 'resource_name_prefix' in variables
     prefix_note = (
@@ -49,6 +62,7 @@ def _build_prompt(user_request: str, repo_context: dict) -> str:
         "context given below — never invent resources, variables, or state that aren't "
         "listed there. If you're not confident a request maps cleanly to one intent, "
         "classify it as \"ambiguous\" rather than guessing.\n\n"
+        f"{_history_block(messages)}"
         f"{prefix_note}"
         "File layout: group resources into a file named for their AWS service — an "
         "`aws_s3_bucket` (and its versioning/lifecycle) goes in `s3.tf`, an "
@@ -77,7 +91,8 @@ def _build_prompt(user_request: str, repo_context: dict) -> str:
 def planner_agent(state: InfraAIState, *, llm=None, api_key=None) -> dict:
     """Classifies intent and produces a plan, answer, or clarifying question."""
     llm = llm or get_planner_llm(api_key)
-    result = llm.invoke(_build_prompt(state["user_request"], state.get("repo_context", {})))
+    messages = state.get("messages") or [{"role": "user", "content": state["user_request"]}]
+    result = llm.invoke(_build_prompt(messages, state.get("repo_context", {})))
 
     update = {"intent": result.intent, "status": _STATUS_BY_INTENT[result.intent]}
     if result.intent == "change":

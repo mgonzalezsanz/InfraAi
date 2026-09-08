@@ -2,7 +2,8 @@ from typing import Literal, TypedDict
 
 
 class InfraAIState(TypedDict):
-    user_request: str
+    user_request: str           # the latest user message — the ask to act on now
+    messages: list[dict]        # conversation thread: [{"role": "user" | "agent", "content": str}]
     repo_context: dict          # existing resources, variables, conventions (files mutate as the editor works)
     base_files: dict            # frozen snapshot of the repo's files at context time, for drift detection
     config: dict                # target repo's infrai.config.yaml: budget ceiling, allowed resource types
@@ -31,6 +32,7 @@ class InfraAIState(TypedDict):
 def create_initial_state(user_request: str) -> InfraAIState:
     return InfraAIState(
         user_request=user_request,
+        messages=[{"role": "user", "content": user_request}],
         repo_context={},
         base_files={},
         config={},
@@ -45,3 +47,12 @@ def create_initial_state(user_request: str) -> InfraAIState:
         pr_url=None,
         agent_message=None,
     )
+
+
+def create_conversation_state(messages: list[dict]) -> InfraAIState:
+    """Build a run's state from a full conversation thread. The latest message is
+    the ask; earlier turns are context the planner reads."""
+    latest = messages[-1]["content"] if messages else ""
+    state = create_initial_state(latest)
+    state["messages"] = list(messages)
+    return state

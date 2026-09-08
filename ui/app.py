@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from graph import build_graph
-from state import create_initial_state
+from state import create_conversation_state
 
 
 def _render_markdown(text: str | None) -> str:
@@ -22,11 +22,12 @@ def _render_markdown(text: str | None) -> str:
     safe = re.sub(r"(?<=\S)\n(?=(?:[-*+]|\d+\.)\s)", "\n\n", safe)
     return _markdown.markdown(safe, extensions=["sane_lists"])
 
+
 # Server-remembered settings. The settings form overrides and remembers; a blank
 # API-key field keeps the current one (a blank target repo clears it). Seeded
 # from the environment so `.env` still works untouched. Local single-user dev
 # server — the key lives only in this process's memory, is never rendered back,
-# and is never written to a run record.
+# and is never written to a conversation record.
 _settings = {
     "anthropic_api_key": os.environ.get("ANTHROPIC_API_KEY", ""),
     "target_repo": os.environ.get("INFRAI_TARGET_REPO", ""),
@@ -37,19 +38,45 @@ templates = Jinja2Templates(directory="ui/templates")
 templates.env.filters["markdown"] = _render_markdown
 app.mount("/static", StaticFiles(directory="ui/static"), name="static")
 
-# Conversations for this app run, keyed by id, in creation order.
-_runs: dict[str, dict] = {}
+# Conversations for this app run, keyed by id, in creation order. In-memory only.
+_conversations: dict[str, dict] = {}
 _lock = threading.Lock()
 
-_TERMINAL_STATUSES = {"pr_open", "answered", "needs_clarification", "needs_human"}
+# States a follow-up message can continue from in this phase.
+_CONTINUABLE = {"needs_clarification", "answered"}
 
 
-def _execute(run_id: str, user_request: str, api_key: str, target_repo: str) -> None:
-    log = []
-    result = {}
+def _conversation_status(conv: dict) -> str:
+    if conv["running"]:
+        return "running"
+    if conv["error"]:
+        return "error"
+    return conv["result"].get("status", "done")
+
+
+def _agent_turn_text(result: dict, error: str | None) -> str:
+    if error:
+        return f"⚠️ {error}"
+    if result.get("pr_url"):
+        return f"Opened a pull request: {result['pr_url']}"
+    if result.get("agent_message"):
+        return result["agent_message"]
+    if result.get("status") == "needs_human":
+        return (
+            "I couldn't reach a valid Terraform plan after 3 attempts. "
+            "Start a new conversation with a more specific request."
+        )
+    return "Done."
+
+
+def _execute(conv_id: str) -> None:
+    conv = _conversations[conv_id]
+    messages = list(conv["messages"])
+    api_key, target_repo = conv["api_key"], conv["target_repo"]
+    log, result, error = [], {}, None
     try:
-        graph = build_graph(target_repo=target_repo or None, api_key=api_key or None)
-        for update in graph.stream(create_initial_state(user_request), stream_mode="updates"):
+        graph = build_graph(target_repo=target_repo or None, api_key=api_key or None, branch_key=conv_id)
+        for update in graph.stream(create_conversation_state(messages), stream_mode="updates"):
             for node_name, node_update in update.items():
                 result.update(node_update)
                 log.append(
@@ -60,29 +87,29 @@ def _execute(run_id: str, user_request: str, api_key: str, target_repo: str) -> 
                     }
                 )
                 with _lock:
-                    _runs[run_id]["log"] = list(log)
-                    _runs[run_id]["result"] = dict(result)
-        with _lock:
-            _runs[run_id]["done"] = True
+                    conv["log"] = list(log)
+                    conv["result"] = dict(result)
     except Exception as exc:  # surfaced in the UI, not swallowed
-        with _lock:
-            _runs[run_id]["done"] = True
-            _runs[run_id]["error"] = str(exc)
+        error = str(exc)
+
+    with _lock:
+        conv["messages"] = messages + [{"role": "agent", "content": _agent_turn_text(result, error)}]
+        conv["error"] = error
+        conv["running"] = False
+        conv["done"] = True
 
 
-def _conversation_status(run: dict) -> str:
-    if run["error"]:
-        return "error"
-    if not run["done"]:
-        return "running"
-    return run["result"].get("status", "done")
+def _start_turn(conv_id: str) -> None:
+    with _lock:
+        _conversations[conv_id].update(log=[], result={}, error=None, running=True, done=False)
+    threading.Thread(target=_execute, args=(conv_id,), daemon=True).start()
 
 
 def _sidebar_context(active_id: str | None = None) -> dict:
     with _lock:
         conversations = [
-            {"id": rid, "label": run["user_request"], "status": _conversation_status(run)}
-            for rid, run in _runs.items()
+            {"id": c["id"], "label": c["title"], "status": _conversation_status(c)}
+            for c in _conversations.values()
         ]
     return {
         "conversations": list(reversed(conversations)),
@@ -92,17 +119,23 @@ def _sidebar_context(active_id: str | None = None) -> dict:
     }
 
 
+def _conversation_context(conv: dict) -> dict:
+    status = _conversation_status(conv)
+    return {
+        "conv": conv,
+        "conv_id": conv["id"],
+        "status": status,
+        "continuable": conv["done"] and status in _CONTINUABLE,
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return templates.TemplateResponse(request, "index.html", _sidebar_context())
 
 
 @app.post("/settings")
-def update_settings(
-    request: Request,
-    anthropic_api_key: str = Form(""),
-    target_repo: str = Form(""),
-):
+def update_settings(request: Request, anthropic_api_key: str = Form(""), target_repo: str = Form("")):
     if anthropic_api_key.strip():
         _settings["anthropic_api_key"] = anthropic_api_key.strip()
     _settings["target_repo"] = target_repo.strip()
@@ -110,24 +143,48 @@ def update_settings(
 
 
 @app.post("/runs")
-def create_run(request: Request, user_request: str = Form(...)):
-    run_id = uuid.uuid4().hex[:8]
+def create_conversation(request: Request, user_request: str = Form(...)):
+    conv_id = uuid.uuid4().hex[:8]
     with _lock:
-        _runs[run_id] = {"user_request": user_request, "log": [], "done": False, "error": None, "result": {}}
-    threading.Thread(
-        target=_execute,
-        args=(run_id, user_request, _settings["anthropic_api_key"], _settings["target_repo"]),
-        daemon=True,
-    ).start()
-    return RedirectResponse(f"/runs/{run_id}", status_code=303)
+        _conversations[conv_id] = {
+            "id": conv_id,
+            "title": user_request,
+            "messages": [{"role": "user", "content": user_request}],
+            "api_key": _settings["anthropic_api_key"],
+            "target_repo": _settings["target_repo"],
+            "log": [],
+            "result": {},
+            "error": None,
+            "running": False,
+            "done": False,
+        }
+    _start_turn(conv_id)
+    return RedirectResponse(f"/conversations/{conv_id}", status_code=303)
 
 
-@app.get("/runs/{run_id}", response_class=HTMLResponse)
-def get_run(request: Request, run_id: str):
-    with _lock:
-        run = dict(_runs.get(run_id, {"user_request": "", "log": [], "done": True, "error": "Run not found", "result": {}}))
-    # htmx polls the fragment; a direct visit / sidebar click renders the full page
+@app.post("/conversations/{conv_id}/messages")
+def add_message(request: Request, conv_id: str, message: str = Form(...)):
+    conv = _conversations.get(conv_id)
+    if conv is None:
+        return RedirectResponse("/", status_code=303)
+    if not conv["running"] and _conversation_status(conv) in _CONTINUABLE:
+        with _lock:
+            conv["messages"] = conv["messages"] + [{"role": "user", "content": message}]
+        _start_turn(conv_id)
+    return RedirectResponse(f"/conversations/{conv_id}", status_code=303)
+
+
+@app.get("/conversations/{conv_id}", response_class=HTMLResponse)
+def get_conversation(request: Request, conv_id: str):
+    conv = _conversations.get(conv_id)
+    if conv is None:
+        return RedirectResponse("/", status_code=303)
+    ctx = _conversation_context(conv)
     if request.headers.get("hx-request"):
-        ctx = {"run_id": run_id, **run, "oob_sidebar": True, "sidebar_status": _conversation_status(run)}
-        return templates.TemplateResponse(request, "run_fragment.html", ctx)
-    return templates.TemplateResponse(request, "run_page.html", {"run_id": run_id, **run, **_sidebar_context(run_id)})
+        return templates.TemplateResponse(request, "turn_fragment.html", {**ctx, "oob_sidebar": True})
+    return templates.TemplateResponse(request, "conversation.html", {**ctx, **_sidebar_context(conv_id)})
+
+
+@app.get("/runs/{conv_id}")
+def _legacy_run_url(conv_id: str):
+    return RedirectResponse(f"/conversations/{conv_id}", status_code=308)

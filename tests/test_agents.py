@@ -74,24 +74,34 @@ def test_planner_agent_strips_leaked_scaffold_tags_from_the_message():
     assert result["agent_message"] == "It's eu-west-3."
 
 
+def _msgs(*contents):
+    return [{"role": "user", "content": c} for c in contents]
+
+
 def test_planner_prompt_instructs_resource_name_prefix_when_configured():
-    prompt = _build_prompt("add a bucket", {"variables": ["resource_name_prefix", "region"]})
+    prompt = _build_prompt(_msgs("add a bucket"), {"variables": ["resource_name_prefix", "region"]})
     assert "var.resource_name_prefix" in prompt
 
 
 def test_planner_prompt_omits_prefix_instruction_when_not_configured():
-    prompt = _build_prompt("add a bucket", {"variables": ["region"]})
+    prompt = _build_prompt(_msgs("add a bucket"), {"variables": ["region"]})
     assert "resource_name_prefix" not in prompt
 
 
 def test_planner_prompt_shows_the_file_layout_and_the_grouping_rule():
-    prompt = _build_prompt(
-        "add an iam role",
-        {"resource_files": {"s3.tf": ["aws_s3_bucket.app_data"]}},
-    )
+    prompt = _build_prompt(_msgs("add an iam role"), {"resource_files": {"s3.tf": ["aws_s3_bucket.app_data"]}})
     assert "s3.tf: aws_s3_bucket.app_data" in prompt   # existing layout
     assert "named for their AWS service" in prompt     # the grouping rule
     assert "iam.tf" in prompt                          # a worked example
+
+
+def test_planner_prompt_includes_the_conversation_history():
+    prompt = _build_prompt(
+        _msgs("add a bucket", "call it app-logs"), {"variables": []}
+    )
+    assert "Conversation so far" in prompt
+    assert "user: add a bucket" in prompt
+    assert prompt.rstrip().endswith("call it app-logs")  # latest message is the ask
 
 
 def test_planner_agent_classifies_ambiguous_intent():

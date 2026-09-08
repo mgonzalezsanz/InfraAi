@@ -35,6 +35,7 @@ def build_graph(
     target_repo=None,
     ref="main",
     api_key=None,
+    branch_key=None,
     planner_llm=None,
     editor_llm=None,
     validate_fn=None,
@@ -50,7 +51,7 @@ def build_graph(
     graph.add_node("editor", partial(editor_agent, llm=editor_llm, api_key=api_key))
     graph.add_node("validator", partial(validator_agent, validate=validate_fn, plan=plan_fn))
     graph.add_node("security_cost", partial(security_cost_agent, checkov=checkov_fn, infracost=infracost_fn))
-    graph.add_node("pr", partial(pr_agent, target_repo=target_repo, open_pr=open_pr_fn))
+    graph.add_node("pr", partial(pr_agent, target_repo=target_repo, open_pr=open_pr_fn, branch_key=branch_key))
     graph.add_node("escalate", escalate)
 
     graph.set_entry_point("context")
