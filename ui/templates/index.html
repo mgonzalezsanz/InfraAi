@@ -2,10 +2,12 @@
 
 {% block main %}
 <div class="card">
-  <h1>New conversation</h1>
-  <p class="subtitle">Describe an infrastructure change, or ask a question about the target repo.</p>
+  <div class="index-header">
+    <h1>New conversation</h1>
+    <p class="subtitle">Describe an infrastructure change, or ask a question about the target repo.</p>
+  </div>
 
-  <form method="post" action="/runs">
+  <form method="post" action="/runs" class="index-form chat-form">
     <textarea name="user_request" placeholder="e.g. Add versioning to the app_data S3 bucket" required></textarea>
     <button type="submit">Run</button>
   </form>

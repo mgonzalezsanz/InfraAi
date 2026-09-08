@@ -167,18 +167,30 @@ def test_conversation_page_renders_thread_and_reply_box_when_continuable():
     assert 'action="/conversations/c7/messages"' in resp.text     # reply box
 
 
-def test_conversation_page_hides_reply_box_after_pr_open():
+def test_conversation_page_disables_reply_box_after_pr_open():
     _seed("c8", messages=[
         {"role": "user", "content": "add a bucket"},
         {"role": "agent", "content": "Opened a pull request: http://x/pull/1"},
     ], result={"status": "pr_open", "pr_url": "http://x/pull/1"})
     resp = client.get("/conversations/c8")
-    assert "/messages" not in resp.text
     assert "start a new conversation" in resp.text.lower()
+    assert "disabled" in resp.text  # the reply box is shown but not usable
 
 
-def test_turn_fragment_polls_while_running_and_updates_sidebar(monkeypatch):
+def test_running_poll_swaps_only_the_tail_and_updates_sidebar():
     _seed("c9", running=True, done=False, log=[{"node": "planner", "status": "editing", "retry_count": 1}])
     resp = client.get("/conversations/c9", headers={"HX-Request": "true"})
-    assert "hx-get" in resp.text and "retry 1/3" in resp.text
+    assert 'id="turn-tail"' in resp.text and "hx-get" in resp.text and "retry 1/3" in resp.text
+    assert 'id="turn"' not in resp.text  # thread is left alone while running
     assert 'id="conv-c9"' in resp.text and 'hx-swap-oob="true"' in resp.text
+
+
+def test_finished_poll_replaces_the_whole_turn_and_stops_polling():
+    _seed("c10", running=False, done=True, messages=[
+        {"role": "user", "content": "what region?"},
+        {"role": "agent", "content": "eu-west-3."},
+    ], result={"status": "answered", "agent_message": "eu-west-3."})
+    resp = client.get("/conversations/c10", headers={"HX-Request": "true"})
+    assert resp.headers["hx-retarget"] == "#turn"
+    assert 'id="turn"' in resp.text and "eu-west-3." in resp.text
+    assert "every 1s" not in resp.text  # polling ends

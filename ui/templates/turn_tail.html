@@ -1,0 +1,26 @@
+<div id="turn-tail"{% if conv.running %} hx-get="/conversations/{{ conv_id }}" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
+  {% if conv.log or conv.running %}
+  <ul class="log">
+    {% for entry in conv.log %}
+    <li><span class="node">{{ entry.node }}</span><span class="entry-meta">{% if entry.retry_count %}<span class="retry">retry {{ entry.retry_count }}/3</span>{% endif %}<span class="status status-{{ entry.status }}">{{ entry.status }}</span></span></li>
+    {% endfor %}
+    {% if conv.running %}<li class="pending">running…</li>{% endif %}
+  </ul>
+  {% endif %}
+
+  <form method="post" action="/conversations/{{ conv_id }}/messages" class="reply chat-form">
+    {% if status == "pr_open" %}
+      <p class="reply-hint">Pull request opened — start a new conversation for another change.</p>
+    {% endif %}
+    <textarea name="message" placeholder="Reply…" required
+      {% if conv.running or not continuable %}disabled{% endif %}></textarea>
+    <button type="submit" {% if conv.running or not continuable %}disabled{% endif %}>Send</button>
+  </form>
+</div>
+
+{% if oob_sidebar %}
+<a href="/conversations/{{ conv_id }}" id="conv-{{ conv_id }}" class="conv active" hx-swap-oob="true">
+  <span class="conv-label">{{ conv.title }}</span>
+  <span class="status status-{{ status }}">{{ status }}</span>
+</a>
+{% endif %}

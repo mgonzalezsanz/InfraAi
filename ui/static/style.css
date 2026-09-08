@@ -17,10 +17,11 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   background: var(--bg);
   color: var(--text);
+  overflow: hidden;
 }
 
 /* ---- sidebar ---- */
@@ -97,7 +98,8 @@ body {
 .main {
   flex: 1;
   min-width: 0;
-  padding: 3rem 1.5rem;
+  min-height: 0;
+  padding: 1.5rem;
   display: flex;
   justify-content: center;
   background: radial-gradient(circle at top, #1a1d24, var(--bg));
@@ -106,11 +108,13 @@ body {
 .card {
   width: 100%;
   max-width: 640px;
-  align-self: flex-start;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 2rem;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
 }
 
@@ -124,6 +128,16 @@ h1 {
   margin: 0 0 1.5rem;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.index-header {
+  flex: 1;
+}
+
+.index-form {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
 }
 
 /* ---- forms ---- */
@@ -143,6 +157,7 @@ textarea, input {
 
 textarea { resize: vertical; min-height: 4.5rem; }
 textarea:focus, input:focus { outline: none; border-color: var(--accent); }
+textarea:disabled, input:disabled { opacity: 0.5; cursor: not-allowed; }
 
 button {
   align-self: flex-end;
@@ -157,6 +172,7 @@ button {
 }
 
 button:hover { filter: brightness(1.1); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .settings { font-size: 0.85rem; }
 .settings summary { color: var(--muted); cursor: pointer; padding: 0.35rem 0; }
@@ -167,10 +183,27 @@ button:hover { filter: brightness(1.1); }
 
 /* ---- conversation thread ---- */
 
-.thread { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; }
+#turn {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 2rem 2rem 0 2rem;
+  gap: 0;
+}
 
-.msg { padding: 0.7rem 0.9rem; border-radius: 10px; font-size: 0.92rem; line-height: 1.5; max-width: 90%; }
-.msg-user { align-self: flex-end; background: var(--accent); color: #fff; white-space: pre-wrap; }
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-bottom: 1rem;
+}
+
+.msg { padding: 0.6rem 0.95rem; border-radius: 10px; font-size: 0.92rem; line-height: 1.5; max-width: 90%; }
+.msg-user { align-self: flex-end; background: var(--accent); color: #fff; white-space: pre-wrap; word-wrap: break-word; }
 .msg-agent { align-self: flex-start; background: #0d0f13; border: 1px solid var(--border); }
 .msg-agent > :first-child { margin-top: 0; }
 .msg-agent > :last-child { margin-bottom: 0; }
@@ -179,22 +212,34 @@ button:hover { filter: brightness(1.1); }
 .msg-agent li { margin: 0.15rem 0; }
 .msg-agent li > p { margin: 0; }
 .msg-agent code { background: rgba(255,255,255,0.08); padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.85em; }
-.msg-agent a { color: var(--accent); font-weight: 600; }
+.msg-agent a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.msg-agent a:hover { text-decoration: underline; }
 
-.reply { margin-top: 1rem; }
+.reply {
+  margin-top: auto;
+  padding: 1rem 0 0 0;
+  border-top: 1px solid var(--border);
+}
+
 .reply textarea { min-height: 3rem; }
 
-.hint { margin-top: 1rem; color: var(--muted); font-size: 0.85rem; }
+.reply-hint {
+  margin: 0 0 0.5rem;
+  color: var(--amber);
+  font-size: 0.8rem;
+}
 
 /* ---- turn log ---- */
 
 .log {
   list-style: none;
-  margin: 0 0 0.75rem;
+  margin: 0.75rem 0;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
+  flex-shrink: 0;
+  margin-top: 1rem;
 }
 
 .log li {
@@ -227,5 +272,7 @@ button:hover { filter: brightness(1.1); }
   body { flex-direction: column; }
   .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); }
   .conversations { max-height: 30vh; }
-  .main { padding: 1.5rem 1rem; }
+  .main { padding: 1rem; }
+  .card { max-width: 100%; }
+  #turn { padding: 1.5rem 1rem 0 1rem; }
 }

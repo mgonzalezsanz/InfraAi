@@ -6,6 +6,30 @@
   <title>{% block title %}InfraAI{% endblock %}</title>
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script>
+    function scrollThreadToBottom() {
+      const thread = document.querySelector('.thread');
+      if (thread) thread.scrollTop = thread.scrollHeight;
+    }
+
+    document.addEventListener('keydown', e => {
+      if ((e.key === 'Enter' || e.key === 'Return') && !e.shiftKey && e.target.tagName === 'TEXTAREA') {
+        const form = e.target.closest('.chat-form');
+        if (form && !e.target.disabled) {
+          e.preventDefault();
+          form.submit();
+        }
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', scrollThreadToBottom);
+
+    // The 1s poll swaps only #turn-tail, so leave the scroll alone then; scroll
+    // on the one-time full #turn swap when a run finishes and a message lands.
+    document.addEventListener('htmx:afterSettle', e => {
+      if (e.detail.target && e.detail.target.id !== 'turn-tail') scrollThreadToBottom();
+    });
+  </script>
 </head>
 <body>
   <aside class="sidebar">

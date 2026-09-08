@@ -1,37 +1,13 @@
-<div id="turn"{% if conv.running %} hx-get="/conversations/{{ conv_id }}" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
-
+<div id="turn">
   <div class="thread">
-    {% for m in conv.messages %}
-      <div class="msg msg-{{ m.role }}">
-        {% if m.role == "agent" %}{{ m.content | markdown | safe }}{% else %}{{ m.content }}{% endif %}
-      </div>
-    {% endfor %}
+    {%- for m in conv.messages %}
+    {%- if m.role == "agent" %}
+    <div class="msg msg-agent">{{ m.content | markdown | safe }}</div>
+    {%- else %}
+    <div class="msg msg-user">{{ m.content }}</div>
+    {%- endif %}
+    {%- endfor %}
   </div>
 
-  {% if conv.log or conv.running %}
-  <ul class="log">
-    {% for entry in conv.log %}
-    <li><span class="node">{{ entry.node }}</span><span class="entry-meta">{% if entry.retry_count %}<span class="retry">retry {{ entry.retry_count }}/3</span>{% endif %}<span class="status status-{{ entry.status }}">{{ entry.status }}</span></span></li>
-    {% endfor %}
-    {% if conv.running %}<li class="pending">running…</li>{% endif %}
-  </ul>
-  {% endif %}
-
-  {% if conv.done %}
-    {% if continuable %}
-      <form method="post" action="/conversations/{{ conv_id }}/messages" class="reply">
-        <textarea name="message" placeholder="Reply…" required></textarea>
-        <button type="submit">Send</button>
-      </form>
-    {% elif status == "pr_open" %}
-      <p class="hint">Pull request opened — start a new conversation for another change.</p>
-    {% endif %}
-  {% endif %}
+  {% include "turn_tail.html" %}
 </div>
-
-{% if oob_sidebar %}
-<a href="/conversations/{{ conv_id }}" id="conv-{{ conv_id }}" class="conv active" hx-swap-oob="true">
-  <span class="conv-label">{{ conv.title }}</span>
-  <span class="status status-{{ status }}">{{ status }}</span>
-</a>
-{% endif %}

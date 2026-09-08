@@ -5,6 +5,7 @@ import uuid
 from html import escape
 
 import markdown as _markdown
+from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,6 +14,8 @@ from fastapi.templating import Jinja2Templates
 from graph import build_graph
 from state import create_conversation_state
 
+load_dotenv()
+
 
 def _render_markdown(text: str | None) -> str:
     # escape first so any stray HTML in an LLM message renders inert, then let
@@ -20,7 +23,10 @@ def _render_markdown(text: str | None) -> str:
     safe = escape(text or "")
     # LLMs routinely omit the blank line Markdown wants before a list
     safe = re.sub(r"(?<=\S)\n(?=(?:[-*+]|\d+\.)\s)", "\n\n", safe)
-    return _markdown.markdown(safe, extensions=["sane_lists"])
+    html = _markdown.markdown(safe, extensions=["sane_lists"])
+    # Make links open in new tab
+    html = re.sub(r'<a href="([^"]*)">', r'<a href="\1" target="_blank" rel="noopener">', html)
+    return html
 
 
 # Server-remembered settings. The settings form overrides and remembers; a blank
@@ -58,7 +64,8 @@ def _agent_turn_text(result: dict, error: str | None) -> str:
     if error:
         return f"⚠️ {error}"
     if result.get("pr_url"):
-        return f"Opened a pull request: {result['pr_url']}"
+        url = result['pr_url']
+        return f"Opened a pull request: [{url}]({url})"
     if result.get("agent_message"):
         return result["agent_message"]
     if result.get("status") == "needs_human":
@@ -144,6 +151,7 @@ def update_settings(request: Request, anthropic_api_key: str = Form(""), target_
 
 @app.post("/runs")
 def create_conversation(request: Request, user_request: str = Form(...)):
+    user_request = user_request.strip()
     conv_id = uuid.uuid4().hex[:8]
     with _lock:
         _conversations[conv_id] = {
@@ -167,7 +175,8 @@ def add_message(request: Request, conv_id: str, message: str = Form(...)):
     conv = _conversations.get(conv_id)
     if conv is None:
         return RedirectResponse("/", status_code=303)
-    if not conv["running"] and _conversation_status(conv) in _CONTINUABLE:
+    message = message.strip()
+    if message and not conv["running"] and _conversation_status(conv) in _CONTINUABLE:
         with _lock:
             conv["messages"] = conv["messages"] + [{"role": "user", "content": message}]
         _start_turn(conv_id)
@@ -180,9 +189,18 @@ def get_conversation(request: Request, conv_id: str):
     if conv is None:
         return RedirectResponse("/", status_code=303)
     ctx = _conversation_context(conv)
-    if request.headers.get("hx-request"):
-        return templates.TemplateResponse(request, "turn_fragment.html", {**ctx, "oob_sidebar": True})
-    return templates.TemplateResponse(request, "conversation.html", {**ctx, **_sidebar_context(conv_id)})
+    if not request.headers.get("hx-request"):
+        return templates.TemplateResponse(request, "conversation.html", {**ctx, **_sidebar_context(conv_id)})
+    # htmx poll during a run: swap only the volatile tail (log + reply box), so
+    # the message thread above is left untouched — no flash, no scroll jump.
+    if conv["running"]:
+        return templates.TemplateResponse(request, "turn_tail.html", {**ctx, "oob_sidebar": True})
+    # run finished: replace the whole #turn once so the new agent message lands,
+    # and polling stops (the fresh tail carries no hx-get).
+    resp = templates.TemplateResponse(request, "turn_fragment.html", {**ctx, "oob_sidebar": True})
+    resp.headers["HX-Retarget"] = "#turn"
+    resp.headers["HX-Reswap"] = "outerHTML"
+    return resp
 
 
 @app.get("/runs/{conv_id}")
