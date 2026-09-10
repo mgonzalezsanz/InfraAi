@@ -161,6 +161,15 @@ Open `http://127.0.0.1:8000`, type a request, and watch the run log update live
 until it lands on a PR URL, a direct answer, or a clarifying question you can
 reply to in the same thread.
 
+To exercise the editor/validator retry loop and the human-escalation exit without
+a real broken plan, set `INFRAI_FORCE_VALIDATE_FAIL` before launching — every
+`terraform validate` then fails with that message, so any change request loops
+three times and escalates:
+```
+INFRAI_FORCE_VALIDATE_FAIL="terraform validate: unclosed configuration block" \
+  .venv/bin/python -m uvicorn ui.app:app --reload
+```
+
 Or via LangGraph Studio (makes real Anthropic/Terraform/Checkov/Infracost calls):
 ```
 .venv/bin/langgraph dev --no-browser

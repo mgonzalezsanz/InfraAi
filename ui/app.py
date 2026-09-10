@@ -40,6 +40,11 @@ _settings = {
 }
 
 app = FastAPI(title="InfraAI")
+
+if os.environ.get("INFRAI_FORCE_VALIDATE_FAIL"):
+    print(f"[dev] INFRAI_FORCE_VALIDATE_FAIL active: every terraform validate will fail "
+          f"with {os.environ['INFRAI_FORCE_VALIDATE_FAIL']!r}")
+
 templates = Jinja2Templates(directory="ui/templates")
 templates.env.filters["markdown"] = _render_markdown
 app.mount("/static", StaticFiles(directory="ui/static"), name="static")
@@ -82,7 +87,13 @@ def _execute(conv_id: str) -> None:
     api_key, target_repo = conv["api_key"], conv["target_repo"]
     log, result, error = [], {}, None
     try:
-        graph = build_graph(target_repo=target_repo or None, api_key=api_key or None, branch_key=conv_id)
+        kwargs = {"target_repo": target_repo or None, "api_key": api_key or None, "branch_key": conv_id}
+        # dev-only: INFRAI_FORCE_VALIDATE_FAIL="<msg>" forces every validate to
+        # fail with that message, to exercise the retry loop + human escalation.
+        forced_fail = os.environ.get("INFRAI_FORCE_VALIDATE_FAIL")
+        if forced_fail:
+            kwargs["validate_fn"] = lambda files: {"valid": False, "errors": [forced_fail]}
+        graph = build_graph(**kwargs)
         for update in graph.stream(create_conversation_state(messages), stream_mode="updates"):
             for node_name, node_update in update.items():
                 result.update(node_update)

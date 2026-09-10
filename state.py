@@ -58,3 +58,15 @@ def create_conversation_state(messages: list[dict]) -> InfraAIState:
     state = create_initial_state(latest)
     state["messages"] = list(messages)
     return state
+
+
+def validation_errors(validation_result: dict) -> list[str]:
+    """Flatten the terraform validate/plan error summaries out of a
+    validation_result (the dict the validator agent writes to state on a failed
+    attempt). Used to feed the failure back to the editor on a retry and to the
+    human on escalation."""
+    if not validation_result:
+        return []
+    validate = validation_result.get("validate") or {}
+    plan = validation_result.get("plan") or {}
+    return list(validate.get("errors") or []) + list(plan.get("errors") or [])

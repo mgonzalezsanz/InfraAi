@@ -146,6 +146,48 @@ def test_editor_agent_can_add_a_new_service_file():
     assert result["repo_context"]["files"]["s3.tf"] == 'resource "aws_s3_bucket" "app_data" {}\n'  # untouched
 
 
+def test_editor_prompt_attaches_prior_terraform_errors_on_a_retry():
+    from agents.editor_agent import _build_prompt as build_editor_prompt
+
+    prompt = build_editor_prompt(
+        [{"file": "main.tf", "action": "add_resource", "detail": "add a bucket"}],
+        {"files": {"main.tf": 'resource "aws_s3_bucket" "old" {}\n'}},
+        ["Missing required argument: bucket", "Reference to undeclared resource"],
+        2,
+    )
+    assert "retry 2/3" in prompt
+    assert "Missing required argument: bucket" in prompt
+    assert "Reference to undeclared resource" in prompt
+
+
+def test_editor_prompt_has_no_error_section_on_the_first_pass():
+    from agents.editor_agent import _build_prompt as build_editor_prompt
+
+    prompt = build_editor_prompt(
+        [{"file": "main.tf", "action": "add_resource", "detail": "add a bucket"}],
+        {"files": {}},
+    )
+    assert "previous attempt" not in prompt
+
+
+def test_editor_agent_feeds_the_validation_error_into_the_llm_on_a_retry():
+    captured = {}
+
+    class _CapturingLLM:
+        def invoke(self, prompt):
+            captured["prompt"] = prompt
+            return EditorOutput(file_edits=[FileEdit(path="main.tf", content="# fixed\n")])
+
+    state = create_initial_state("Add a bucket")
+    state["repo_context"] = {"files": {"main.tf": "# broken\n"}}
+    state["change_plan"] = [{"file": "main.tf", "action": "add_resource", "detail": "add a bucket"}]
+    state["retry_count"] = 1
+    state["validation_result"] = {"valid": False, "validate": {"errors": ["Unclosed configuration block"]}, "plan": None}
+
+    editor_agent(state, llm=_CapturingLLM())
+    assert "Unclosed configuration block" in captured["prompt"]
+
+
 def test_editor_agent_leaves_files_outside_the_plan_byte_identical():
     variables_tf = 'variable "region" {\n  default = "eu-west-3"\n}\n'
     state = create_initial_state("Add a bucket")

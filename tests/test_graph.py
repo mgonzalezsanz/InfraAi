@@ -68,7 +68,7 @@ def test_change_request_escalates_to_needs_human_after_three_failed_validations(
     graph = build_graph(
         planner_llm=planner_llm,
         editor_llm=editor_llm,
-        validate_fn=lambda files: {"valid": False, "errors": ["syntax error"]},
+        validate_fn=lambda files: {"valid": False, "errors": ["syntax error near line 1"]},
         open_pr_fn=lambda **kwargs: "should-never-be-called",
     )
 
@@ -76,6 +76,8 @@ def test_change_request_escalates_to_needs_human_after_three_failed_validations(
     assert result["status"] == "needs_human"
     assert result["retry_count"] == 3
     assert result["pr_url"] is None
+    # the handoff carries the last attempt's terraform error, not just a bare status
+    assert "syntax error near line 1" in result["agent_message"]
 
 
 def test_route_after_planner_change():

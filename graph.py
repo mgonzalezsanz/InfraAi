@@ -8,7 +8,7 @@ from agents.planner_agent import planner_agent
 from agents.pr_agent import pr_agent
 from agents.security_cost_agent import security_cost_agent
 from agents.validator_agent import validator_agent
-from state import InfraAIState
+from state import InfraAIState, validation_errors
 
 
 def route_after_planner(state: InfraAIState) -> str:
@@ -25,9 +25,19 @@ def route_after_validator(state: InfraAIState) -> str:
 
 
 def escalate(state: InfraAIState) -> dict:
-    """Terminal node: the editor/validator loop failed 3 times. Hand to a human
-    instead of looping forever."""
-    return {"status": "needs_human"}
+    """Terminal node: the editor/validator loop failed 3 times. Hand off to a human
+    — with the last attempt's terraform errors — instead of looping forever."""
+    errors = validation_errors(state.get("validation_result", {}))
+    detail = "\n".join(f"- {e}" for e in errors) if errors else "- (no specific terraform error was captured)"
+    return {
+        "status": "needs_human",
+        "agent_message": (
+            "I couldn't reach a valid Terraform plan after 3 attempts, so I'm handing this "
+            "to a human. The last attempt failed with:\n\n"
+            f"{detail}\n\n"
+            "Start a new conversation with a more specific request."
+        ),
+    }
 
 
 def build_graph(
