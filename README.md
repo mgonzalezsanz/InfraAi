@@ -51,6 +51,14 @@ context and the run ends there:
 
 ![The web UI answering a question about existing infrastructure](docs/images/conversation-infra-ai.png)
 
+When the Validator can't reach a clean `terraform validate` / `plan`, it loops
+back to the Editor — re-invoked with the failure attached to its prompt, so each
+retry is a targeted fix. After three tries the graph stops looping and hands off
+to a human, carrying the Terraform errors from the last attempt rather than a
+bare status:
+
+![The web UI escalating to a human after three failed validation attempts: the retry log climbs 1/3 → 3/3 and the agent message shows the terraform error passed to the human](docs/images/escalate-HITL.png)
+
 ## Two repos, not one
 
 This repo (`InfraAi`) is the **agentic codebase only** — it never contains the
